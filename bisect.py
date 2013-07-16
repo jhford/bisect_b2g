@@ -6,6 +6,7 @@ import os
 import subprocess as sp
 import shutil
 from optparse import OptionParser
+import isodate
 
 class Repository(object):
 
@@ -71,8 +72,6 @@ class GitRepository(Repository):
 
     def __init__(self, *args):
         Repository.__init__(self, *args)
-
-    def init_repo(self):
         if os.path.exists(self.local_path) and os.path.isdir(self.local_path):
             self.update()
         else:
@@ -94,20 +93,28 @@ class GitRepository(Repository):
         # This will create a detached head
         self.run_cmd(["git", "checkout", rev], workdir=self.local_path)
 
-    def rev_list(self, branch, start, end):
+    def rev_list(self, start, end):
+        def fix_git_timestamp(timestamp):
+            """Yay git for generating non-ISO8601 datetime stamps.  Git generates, e.g.
+            2013-01-29 16:06:52 -0800 but ISO8601 would be 2013-01-29T16:06:52-0800"""
+            as_list = list(timestamp)
+            as_list[10] = 'T'
+            del as_list[19]
+            return "".join(as_list)
         sep = " --- "
-        raw_output = self.run_cmd(["git", "log", branch, "%s..%s" % (start, end), '--pretty="%%H%s%%ci"' % sep])
-        output = [x.strip() for x in raw_output.split('\n')]
+        raw_output = self.run_cmd(["git", "log", "--first-parent", "--reverse", "%s..%s" % (start, end), '--pretty="%%H%s%%ci"' % sep], self.local_path )
+        intermediate_output = [x.strip() for x in raw_output.split('\n')]
+        output = []
+        for line in [x for x in intermediate_output if x != '']:
+            h,s,d = line.partition(sep)
+            output.append((h, isodate.parse_datetime(fix_git_timestamp(d))))
+        return output
 
-
-
-
+        
 class HgRepository(Repository):
 
     def __init__(self, *args):
         Repository.__init__(self, *args)
-
-    def init_repo(self):
         if os.path.exists(self.local_path) and os.path.isdir(self.local_path):
             self.update()
         else:
@@ -125,7 +132,7 @@ class HgRepository(Repository):
     def set_rev(self, rev):
         self.run_cmd(["hg", "update", "--rev", rev], workdir=self.local_path)
 
-    def rev_list(self, branch, start, end):
+    def rev_list(self, start, end):
         pass
 
 class Project(object):
@@ -139,11 +146,6 @@ class Project(object):
         self.bad = bad
         self.vcs = vcs
 
-
-    def __str__(self):
-        return "Name: %(name)s, Url: %(url)s, Branch: %(branch)s, Good: %(good)s, Bad: %(bad)s, VCS: %(vcs)s" % self.__dict__
-
-    def materialize(self):
         if self.vcs == 'git':
             repocls = GitRepository
         elif self.vcs == 'hg':
@@ -152,16 +154,73 @@ class Project(object):
             print >> sys.stderr, "ERROR: Unsupported repository type"
             exit(1)
         self.repository = repocls(self.name, self.url)
-        self.repository.init_repo()
+
+    def rev_list(self):
+        if not hasattr(self, 'last_rl_id') or self.last_rl_id != (self.good, self.bad):
+            self.last_rl_id = (self.good, self.bad)
+            self.last_rl = self.repository.rev_list(self.good, self.bad)
+        return self.last_rl
+
+    def __str__(self):
+        return "Name: %(name)s, Url: %(url)s, Branch: %(branch)s, Good: %(good)s, Bad: %(bad)s, VCS: %(vcs)s" % self.__dict__
+    __repr__ = __str__
+
+
+class N(object):
+
+    def __init__(self, data, n):
+        self.data = data
+        self.n = n
+
+    def __str__(self):
+        return 'self: %s, next: %s, data: %s' % (id(self), id(self.n), str(self.data))
+    __repr__ = __str__
+
+
+def make_ll(l):
+    """ Make a linked list such that l[0] is the first item is the list head returned"""
+    rl = reversed(l[:])
+    head = None
+    for i in rl:
+        head = N(i, head)
+    return head
 
 
 
 
 def bisect(projects):
-    for p in projects:
-        print p
-        p.materialize()
+    global_rev_list = []
+    rev_lists = []
+    for project in projects:
+        rev_lists.append(make_ll([(x,project) for x in project.rev_list()]))
 
+    def oldest(l):
+        """Find the oldest head of a linked list and return it"""
+        oldest = l[0]
+        for other in l[1:]:
+            if other.data[1] < oldest.data[1]:
+                oldest = other
+        return oldest
+
+    def finished():
+        for x in rev_lists:
+            if x != None:
+                return False
+        return True
+    
+    def create_line(prev, new):
+        """ This function creates a line.  It will use the values in prev, joined with the value of new"""
+        pass
+
+
+    c = oldest(rev_lists)
+
+    while not finished():
+        break
+    
+
+
+    
 
 def main():
     project_names = ('gaia', 'gecko')
