@@ -166,13 +166,25 @@ class Project(object):
     __repr__ = __str__
 
 
+class Rev(object):
+
+    def __init__(self, h, prj, date):
+        object.__init__(self)
+        self.h = h
+        self.prj = prj
+        self.date = date
+
+
 class N(object):
 
     def __init__(self, data, n):
+        object.__init__(self)
         self.data = data
         self.n = n
 
     def __str__(self):
+        return "%s, %s, %s" % (self.data[0][0], self.data[0][1],
+                               self.data[1].name)
         return 'self: %s, next: %s, data: %s' % (id(self), id(self.n), str(self.data))
     __repr__ = __str__
 
@@ -186,38 +198,66 @@ def make_ll(l):
     return head
 
 
+def print_ll(l):
+    """ Print out a linked list"""
+    i=l
+    while i != None:
+        print i.data
+        i=i.n
 
 
 def bisect(projects):
     global_rev_list = []
     rev_lists = []
+    last_revs = []
     for project in projects:
         rev_lists.append(make_ll([(x,project) for x in project.rev_list()]))
 
     def oldest(l):
         """Find the oldest head of a linked list and return it"""
-        oldest = l[0]
-        for other in l[1:]:
-            if other.data[1] < oldest.data[1]:
-                oldest = other
-        return oldest
+        if len(l) == 1:
+            return l[0]
+        elif len(l) == 2:
+            if l[0].data[1] < l[1].data[1]:
+                return l[0]
+            else:
+                return l[1]
+        else:
+            oldest = l[0]
+            for other in l[1:]:
+                if other.data[1] < oldest.data[1]:
+                    oldest = other
+            return oldest
 
-    def finished():
-        for x in rev_lists:
-            if x != None:
-                return False
-        return True
-    
     def create_line(prev, new):
         """ This function creates a line.  It will use the values in prev, joined with the value of new"""
-        pass
+        print 'PREV: %s, NEW: %s' % (prev,new)
+        if len(new) == 1:
+            # If we're done finding the oldest, we want to make a new line then
+            # move the list of the oldest one forward
+            global_rev_list.append(tuple(prev+new))
+            rli = rev_lists.index(new[0])
+            if rev_lists[rli].n == None:
+                del rev_lists[rli]
+            else:
+                rev_lists[rli] = rev_lists[rli].n
+            return
+        else:
+            # Otherwise, we want to recurse to finding the oldest objects
+            o = oldest(new)
+            prev.append(o)
+            del new[new.index(o)]
+            create_line(prev, new)
+            
 
 
-    c = oldest(rev_lists)
+    while len(rev_lists) > 0:
+        print "Last revs: ", last_revs
+        create_line(last_revs, rev_lists[:])
 
-    while not finished():
-        break
-    
+    print "GLOBAL LIST UPDATE:\n  *", "\n  * ".join([str(x) for x in
+                                                              global_rev_list]), '\n\n\n'
+
 
 
     

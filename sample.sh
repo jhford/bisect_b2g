@@ -1,7 +1,9 @@
 #!/bin/bash
 clear
-
-./bisect.py \
+if [ "$1" == pdb ] ; then
+    DBG="python -m pdb"
+fi
+$DBG ./bisect.py \
     --gaia-url git://github.com/mozilla-b2g/device-leo.git \
     --gaia-branch master \
     --good-gaia 837cb4d449281b3990bbdb4c34e3f86c52d83ab3 \
