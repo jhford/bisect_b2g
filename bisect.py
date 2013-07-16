@@ -217,15 +217,10 @@ def bisect(projects):
         """Find the oldest head of a linked list and return it"""
         if len(l) == 1:
             return l[0]
-        elif len(l) == 2:
-            if l[0].data[1] < l[1].data[1]:
-                return l[0]
-            else:
-                return l[1]
         else:
             oldest = l[0]
             for other in l[1:]:
-                if other.data[1] < oldest.data[1]:
+                if other.data[1] > oldest.data[1]:
                     oldest = other
             return oldest
 
@@ -237,7 +232,9 @@ def bisect(projects):
             # move the list of the oldest one forward
             global_rev_list.append(tuple(prev+new))
             rli = rev_lists.index(new[0])
+            print "RLI: ", rli
             if rev_lists[rli].n == None:
+                last_revs.append(rev_lists[rli])
                 del rev_lists[rli]
             else:
                 rev_lists[rli] = rev_lists[rli].n
@@ -245,7 +242,8 @@ def bisect(projects):
         else:
             # Otherwise, we want to recurse to finding the oldest objects
             o = oldest(new)
-            prev.append(o)
+            if not o in prev:
+                prev.append(o)
             del new[new.index(o)]
             create_line(prev, new)
             
@@ -253,7 +251,7 @@ def bisect(projects):
 
     while len(rev_lists) > 0:
         print "Last revs: ", last_revs
-        create_line(last_revs, rev_lists[:])
+        create_line(last_revs[:], rev_lists[:])
 
     print "GLOBAL LIST UPDATE:\n  *", "\n  * ".join([str(x) for x in
                                                               global_rev_list]), '\n\n\n'
