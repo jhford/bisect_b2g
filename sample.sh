@@ -9,7 +9,8 @@ fi
 
 # July 16-10
 
-$DBG ./bisect.py \
+cmd="$DBG ./bisect.py \
+    --script ./test.sh \
     --gaia-url git://github.com/mozilla-b2g/gaia.git \
     --gaia-branch master \
     --good-gaia f207fcf201d463f183b7095a1f0464dae36ff31d \
@@ -17,6 +18,9 @@ $DBG ./bisect.py \
     --gaia-vcs git \
     --gecko-url git://github.com/mozilla-b2g/gonk-misc.git \
     --gecko-branch master \
-    --good-gecko f0c701dad1c7352d567f4ddcf86c66ae2d5c8fda \
-    --bad-gecko d4e6ca10162b4d3d79052b5b4721c4495640493e \
-    --gecko-vcs git
+    --good-gecko 2afa3fab9a667b6d5b5f894714bf960fdf85000f \
+    --bad-gecko 584a1c3abf9e396f3a896244f57fbdd376dd6005 \
+    --follow-merges \
+    --gecko-vcs git"
+echo $cmd
+$cmd

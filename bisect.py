@@ -6,7 +6,51 @@ import os
 import subprocess as sp
 import shutil
 from optparse import OptionParser
+import math
+
 import isodate
+
+# Store global options.  Probably a bad idea
+global_options = {}
+
+devnull = open(os.devnull, 'w+')
+
+def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
+            ignore_err=True, env=None, delete_env=False, rc_only=False, **kwargs):
+    """ Wrap subprocess in a way that I like.
+    command: string or list of the command to run
+    workdir: directory to do the work in
+    inc_err: include stderr in the output string returned
+    read_out: decide whether we're going to want output returned or printed
+    env: add this dictionary to the default environment
+    delete_env: delete these environment keys
+    rc_only: run the command, ignore output"""
+    full_env = dict(os.environ)
+    if env:
+        full_env.update(env)
+    if delete_env:
+        for d in delete_env:
+            if full_env.has_key(d):
+                del full_env[d]
+    if inc_err and ignore_err:
+        raise Exception("You are trying to include *and* ignore stderr, wtf?")
+    elif inc_err:
+        kwargs = kwargs.copy()
+        kwargs['stderr'] = sp.STDOUT
+    elif ignore_err:
+        kwargs = kwargs.copy()
+        kwargs['stderr'] = sp.PIPE # This might be a bad idea, research this!
+    if rc_only:
+        func = sp.call
+        # This probably leaves a bunch of wasted open file handles.  Meh
+        kwargs['stderr'] = kwargs['stdout'] = devnull
+    elif read_out:
+        func = sp.check_output
+    else:
+        func = sp.check_call
+    #print "command: %s, workdir=%s" % (command, workdir)
+    return func(command, cwd=workdir, env=full_env, **kwargs)
+
 
 class Repository(object):
 
@@ -15,36 +59,9 @@ class Repository(object):
         self.name = name
         self.url = url
         self.local_path = os.path.join(os.getcwd(), "repos", self.name)
+        print "Initializing %s at '%s'" % (self.name, self.local_path)
 
-    def run_cmd(self, command, workdir=os.getcwd(), read_out=True, inc_err=False, ignore_err=True, env=None, delete_env=False, **kwargs):
-        """ Wrap subprocess in a way that I like.
-        command: string or list of the command to run
-        workdir: directory to do the work in
-        inc_err: include stderr in the output string returned
-        read_out: decide whether we're going to want output returned or printed
-        env: add this dictionary to the default environment
-        delete_env: delete these environment keys"""
-        full_env = dict(os.environ)
-        if env:
-            full_env.update(env)
-        if delete_env:
-            for d in delete_env:
-                if full_env.has_key(d):
-                    del full_env[d]
-        if inc_err and ignore_err:
-            raise Exception("You are trying to include *and* ignore stderr, wtf?")
-        elif inc_err:
-            kwargs = kwargs.copy()
-            kwargs['stderr'] = sp.STDOUT
-        elif ignore_err:
-            kwargs = kwargs.copy()
-            kwargs['stderr'] = sp.PIPE # This might be a bad idea, research this!
-        if read_out:
-            func = sp.check_output
-        else:
-            func = sp.check_call
-        print "command: %s, workdir=%s" % (command, workdir)
-        return func(command, cwd=workdir, env=full_env, **kwargs)
+
 
     def sanitize(self):
         assert 0
@@ -81,17 +98,18 @@ class GitRepository(Repository):
         local_path_base = os.path.split(self.local_path)[0]
         if not os.path.exists(local_path_base):
             os.makedirs(local_path_base)
-        self.run_cmd(["git", "clone", self.url, self.local_path])
+        run_cmd(["git", "clone", self.url, self.local_path])
 
     def update(self):
-        self.run_cmd(["git", "pull", "--all"], workdir=self.local_path)
+        # self.set_rev('master') # TODO THIS IS A HACK!
+        run_cmd(["git", "fetch", "--all"], workdir=self.local_path)
 
     def get_rev(self):
-        return self.run_cmd(["git", "rev-parse", "HEAD"])
+        return run_cmd(["git", "rev-parse", "HEAD"])
 
     def set_rev(self, rev):
         # This will create a detached head
-        self.run_cmd(["git", "checkout", rev], workdir=self.local_path)
+        run_cmd(["git", "checkout", rev], workdir=self.local_path)
 
     def rev_list(self, start, end):
         def fix_git_timestamp(timestamp):
@@ -102,7 +120,12 @@ class GitRepository(Repository):
             del as_list[19]
             return "".join(as_list)
         sep = " --- "
-        raw_output = self.run_cmd(["git", "log", "--first-parent", "--reverse", "%s..%s" % (start, end), '--pretty="%%H%s%%ci"' % sep], self.local_path )
+        command = ["git", "log"]
+        if global_options['follow_merges']:
+            command.append("--first-parent")
+        command.extend(["--date-order", "%s..%s" % (start, end),
+                        '--pretty=%%H%s%%ci' % sep])
+        raw_output = run_cmd(command, self.local_path )
         intermediate_output = [x.strip() for x in raw_output.split('\n')]
         output = []
         for line in [x for x in intermediate_output if x != '']:
@@ -121,19 +144,19 @@ class HgRepository(Repository):
             self.clone()
 
     def clone(self):
-        self.run_cmd(["hg", "clone", self.url, self.local_path])
+        run_cmd(["hg", "clone", self.url, self.local_path])
 
     def update(self):
-        self.run_cmd(["hg", "pull", "-u"], workdir=self.local_path)
+        run_cmd(["hg", "pull", "-u"], workdir=self.local_path)
 
     def get_rev(self):
-        return self.run_cmd(["hg", "identify"])
+        return run_cmd(["hg", "identify"])
 
     def set_rev(self, rev):
-        self.run_cmd(["hg", "update", "--rev", rev], workdir=self.local_path)
+        run_cmd(["hg", "update", "--rev", rev], workdir=self.local_path)
 
     def rev_list(self, start, end):
-        pass
+        assert 0
 
 class Project(object):
 
@@ -174,6 +197,10 @@ class Rev(object):
         self.prj = prj
         self.date = date
 
+    def __str__(self):
+        return "%s, %s, %s" % (self.h, self.prj.name, self.date)
+    __repr__=__str__
+
 
 class N(object):
 
@@ -183,8 +210,6 @@ class N(object):
         self.n = n
 
     def __str__(self):
-        return "%s, %s, %s" % (self.data[0][0], self.data[0][1],
-                               self.data[1].name)
         return 'self: %s, next: %s, data: %s' % (id(self), id(self.n), str(self.data))
     __repr__ = __str__
 
@@ -211,7 +236,7 @@ def build_history(projects):
     rev_lists = []
     last_revs = []
     for project in projects:
-        rev_lists.append(make_ll([(x,project) for x in project.rev_list()]))
+        rev_lists.append(make_ll([Rev(x[0], project, x[1]) for x in project.rev_list()]))
 
     def oldest(l):
         """Find the oldest head of a linked list and return it"""
@@ -220,17 +245,20 @@ def build_history(projects):
         else:
             oldest = l[0]
             for other in l[1:]:
-                if other.data[1] > oldest.data[1]:
+                if other.data.date > oldest.data.date:
                     oldest = other
             return oldest
 
     def create_line(prev, new):
         """ This function creates a line.  It will use the values in prev, joined with the value of new"""
-        print 'PREV: %s, NEW: %s' % (prev,new)
         if len(new) == 1:
             # If we're done finding the oldest, we want to make a new line then
             # move the list of the oldest one forward
-            global_rev_list.append(tuple(prev+new))
+            global_rev_list.append([x.data for x in prev + new])
+            #line = []
+            #for x in prev + new:
+            #    line.append(x.data)
+            #global_rev_list.append(line)
             rli = rev_lists.index(new[0])
             if rev_lists[rli].n == None:
                 last_revs.append(rev_lists[rli])
@@ -251,15 +279,27 @@ def build_history(projects):
     while len(rev_lists) > 0:
         create_line(last_revs[:], rev_lists[:])
 
-    print "GLOBAL LIST:\n  *", "\n  * ".join([str(x) for x in
-                                             global_rev_list]), '\n\n\n'
     return global_rev_list
     
 
-def bisect(history):
-    print "Doing a bisect!"
-    pass
+def bisect(history, script, all_history, num=0):
+    middle = len(history) / 2
+    if len(history) == 1:
+        return history[0]
+    else:
+        cur = history[middle]
+        total = round(math.log(len(all_history) + len(all_history) % 2, 2))
+        print "Running test %d of %d or %d: " % (num+1, total - 1, total)
+        for rev in cur:
+            print "  * %s@%s" % (rev.prj.name, rev.h)
+        for rev in cur:
+            rev.prj.repository.set_rev(rev.h)
+        rc = run_cmd(command=script, rc_only=True)
 
+        if rc == 0:
+            return bisect(history[middle:], script, all_history, num+1)
+        else:
+            return bisect(history[:middle], script, all_history, num+1)
 
 def main():
     project_names = ('gaia', 'gecko')
@@ -267,6 +307,13 @@ def main():
     parser = OptionParser("%prog - I bisect gecko and gaia!")
     # There should be an option for a script that figures out if a given pairing is
     # good or bad
+    parser.add_option("--script", "-x", help="Script to run.  Return code 0 \
+                      means the current changesets are good, Return code 1 means \
+                      that it's bad", dest="script")
+    parser.add_option("--follow-merges", help="Should git/hg log functions \
+                      follow both sides of a merge or only the mainline.\
+                      This equates to --first-parent in git log",
+                      dest="follow_merges", default=True, action="store_false")
     for i in project_names:
         parser.add_option("--%s-url" % i, help="URL to use for cloning %s" % i,
                           dest="%s_url" % i)
@@ -279,6 +326,10 @@ def main():
         parser.add_option("--%s-vcs" % i, help="Which VCS to use for %s" % i,
                           dest="vcs_%s" % i, default="hg" if i == 'gecko' else "git")
     opts, args = parser.parse_args()
+
+    
+    global_options['follow_merges'] = opts.follow_merges
+
     bad_opts = []
     for option in ('gaia_url', 'gaia_branch', 'good_gaia', 'bad_gaia', 'vcs_gaia', \
                    'gecko_url', 'gecko_branch', 'good_gecko', 'bad_gecko', 'vcs_gecko'):
@@ -299,7 +350,13 @@ def main():
         projects.append(project)
 
     combined_history = build_history(projects)
-    bisect(combined_history)
+    found = bisect(combined_history, opts.script, combined_history)
+    print "="*80
+    print "Found:"
+    for rev in found:
+        print "  * %s@%s" % (rev.prj.name, rev.h)
+    print "This was revision pair %d of %d total revision pairs" % \
+    (combined_history.index(found), len(combined_history))
 
 
 if __name__ == "__main__":
