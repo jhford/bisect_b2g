@@ -206,7 +206,7 @@ def print_ll(l):
         i=i.n
 
 
-def bisect(projects):
+def build_history(projects):
     global_rev_list = []
     rev_lists = []
     last_revs = []
@@ -232,7 +232,6 @@ def bisect(projects):
             # move the list of the oldest one forward
             global_rev_list.append(tuple(prev+new))
             rli = rev_lists.index(new[0])
-            print "RLI: ", rli
             if rev_lists[rli].n == None:
                 last_revs.append(rev_lists[rli])
                 del rev_lists[rli]
@@ -250,15 +249,17 @@ def bisect(projects):
 
 
     while len(rev_lists) > 0:
-        print "Last revs: ", last_revs
         create_line(last_revs[:], rev_lists[:])
 
-    print "GLOBAL LIST UPDATE:\n  *", "\n  * ".join([str(x) for x in
-                                                              global_rev_list]), '\n\n\n'
-
-
-
+    print "GLOBAL LIST:\n  *", "\n  * ".join([str(x) for x in
+                                             global_rev_list]), '\n\n\n'
+    return global_rev_list
     
+
+def bisect(history):
+    print "Doing a bisect!"
+    pass
+
 
 def main():
     project_names = ('gaia', 'gecko')
@@ -297,7 +298,8 @@ def main():
                           vcs=getattr(opts, "vcs_%s"%i))
         projects.append(project)
 
-    bisect(projects)
+    combined_history = build_history(projects)
+    bisect(combined_history)
 
 
 if __name__ == "__main__":
