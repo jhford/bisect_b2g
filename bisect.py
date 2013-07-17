@@ -301,8 +301,8 @@ def bisect(history, script, all_history, num=0):
         else:
             return bisect(history[:middle], script, all_history, num+1)
 
+
 def main():
-    project_names = ('gaia', 'gecko')
     projects = []
     parser = OptionParser("%prog - I bisect gecko and gaia!")
     # There should be an option for a script that figures out if a given pairing is
@@ -314,31 +314,37 @@ def main():
                       follow both sides of a merge or only the mainline.\
                       This equates to --first-parent in git log",
                       dest="follow_merges", default=True, action="store_false")
-    for i in project_names:
-        parser.add_option("--%s-url" % i, help="URL to use for cloning %s" % i,
-                          dest="%s_url" % i)
-        parser.add_option("--%s-branch" % i, help="Branch to use for %s" % i,
-                          dest="%s_branch" % i)
-        parser.add_option("--good-%s" % i, help="Good commit/changeset for %s" % i,
-                          dest="good_%s" % i)
-        parser.add_option("--bad-%s" % i, help="Bad commit/changeset for %s" % i,
-                          dest="bad_%s" % i)
-        parser.add_option("--%s-vcs" % i, help="Which VCS to use for %s" % i,
-                          dest="vcs_%s" % i, default="hg" if i == 'gecko' else "git")
     opts, args = parser.parse_args()
+
+    class InvalidArg(exception): pass
+    
+    def parse_arg(arg):
+        arg_data = {}
+        uri_sep = '@'
+        rev_sep = '..'
+        uri, x, rev_range = arg.partition(uri_sep)
+        if x != uri_sep:
+            raise InvalidArg("Argument '%s' is not properly formed" % arg)
+        arg_data['good'], x, arg_data['bad'] = rev_range.partition(rev_sep)
+        if x != rev_sep:
+            raise InvalidArg("Argument '%s' is not properly formed" % arg)
+        
+        if os.path.exists(uri):
+            print "Path exists, reusing"
+            arg_data['local_path'] = uri
+            arg_data['uri'] = uri
+        else:
+            pass # Here's where we 
+
+
+
+
+    # ARG FORMAT: URI@GOOD..BAD
+    for arg in args:
+
 
     
     global_options['follow_merges'] = opts.follow_merges
-
-    bad_opts = []
-    for option in ('gaia_url', 'gaia_branch', 'good_gaia', 'bad_gaia', 'vcs_gaia', \
-                   'gecko_url', 'gecko_branch', 'good_gecko', 'bad_gecko', 'vcs_gecko'):
-        if not getattr(opts, option):
-            bad_opts.append(option)
-    if len(bad_opts) > 0:
-        parser.print_help()
-        print "ERROR: You have some bad options: '%s'" % "', '".join(bad_opts)
-        parser.exit(1)
 
     for i in project_names:
         project = Project(name=i,
