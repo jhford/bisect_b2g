@@ -8,6 +8,8 @@ import shutil
 from optparse import OptionParser
 import math
 
+import urlparse
+
 import isodate
 
 # Store global options.  Probably a bad idea
@@ -54,14 +56,12 @@ def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
 
 class Repository(object):
 
-    def __init__(self, name, url):
+    def __init__(self, name, url, local_path):
         object.__init__(self)
         self.name = name
         self.url = url
-        self.local_path = os.path.join(os.getcwd(), "repos", self.name)
-        print "Initializing %s at '%s'" % (self.name, self.local_path)
-
-
+        self.local_path = local_path
+        print "Setting up %s" % name if name == local_path else "%s at %s" % (name, local_path)
 
     def sanitize(self):
         assert 0
@@ -81,7 +81,7 @@ class Repository(object):
     def set_rev(self, rev):
         assert 0
 
-    def rev_list(self, branch, start, end):
+    def rev_list(self, start, end):
         assert 0
 
 
@@ -96,7 +96,7 @@ class GitRepository(Repository):
 
     def clone(self):
         local_path_base = os.path.split(self.local_path)[0]
-        if not os.path.exists(local_path_base):
+        if not os.path.exists(local_path_base) and local_path_base != '':
             os.makedirs(local_path_base)
         run_cmd(["git", "clone", self.url, self.local_path])
 
@@ -158,13 +158,14 @@ class HgRepository(Repository):
     def rev_list(self, start, end):
         assert 0
 
+
 class Project(object):
 
-    def __init__(self, name, url, branch, good, bad, vcs="git"):
+    def __init__(self, name, url, local_path, good, bad, vcs="git"):
         object.__init__(self)
         self.name = name
         self.url = url
-        self.branch = branch
+        self.local_path = local_path
         self.good = good
         self.bad = bad
         self.vcs = vcs
@@ -176,7 +177,7 @@ class Project(object):
         else:
             print >> sys.stderr, "ERROR: Unsupported repository type"
             exit(1)
-        self.repository = repocls(self.name, self.url)
+        self.repository = repocls(self.name, self.url, self.local_path)
 
     def rev_list(self):
         if not hasattr(self, 'last_rl_id') or self.last_rl_id != (self.good, self.bad):
@@ -185,7 +186,7 @@ class Project(object):
         return self.last_rl
 
     def __str__(self):
-        return "Name: %(name)s, Url: %(url)s, Branch: %(branch)s, Good: %(good)s, Bad: %(bad)s, VCS: %(vcs)s" % self.__dict__
+        return "Name: %(name)s, Url: %(url)s, Good: %(good)s, Bad: %(bad)s, VCS: %(vcs)s" % self.__dict__
     __repr__ = __str__
 
 
@@ -221,14 +222,6 @@ def make_ll(l):
     for i in rl:
         head = N(i, head)
     return head
-
-
-def print_ll(l):
-    """ Print out a linked list"""
-    i=l
-    while i != None:
-        print i.data
-        i=i.n
 
 
 def build_history(projects):
@@ -274,22 +267,21 @@ def build_history(projects):
             del new[new.index(o)]
             create_line(prev, new)
             
-
-
     while len(rev_lists) > 0:
         create_line(last_revs[:], rev_lists[:])
 
     return global_rev_list
     
 
-def bisect(history, script, all_history, num=0):
+def _bisect(history, script, all_history, num=0):
+    print '-' * 80
     middle = len(history) / 2
     if len(history) == 1:
         return history[0]
     else:
         cur = history[middle]
         total = round(math.log(len(all_history) + len(all_history) % 2, 2))
-        print "Running test %d of %d or %d: " % (num+1, total - 1, total)
+        print "Running test %d of %d or %d: " % (num + 1, total - 1, total)
         for rev in cur:
             print "  * %s@%s" % (rev.prj.name, rev.h)
         for rev in cur:
@@ -297,14 +289,130 @@ def bisect(history, script, all_history, num=0):
         rc = run_cmd(command=script, rc_only=True)
 
         if rc == 0:
-            return bisect(history[middle:], script, all_history, num+1)
+            print "Test passed"
+            return _bisect(history[middle:], script, all_history, num+1)
         else:
-            return bisect(history[:middle], script, all_history, num+1)
+            print "Test failed"
+            return _bisect(history[:middle], script, all_history, num+1)
+
+# Make the first entry into the function a little tidier
+def bisect(history, script):
+    return _bisect(history, script, history, 0)
+
+
+class InvalidArg(Exception): pass
+
+
+def local_path_to_name(lp):
+    head, tail = os.path.split(lp)
+    if tail.endswith('.git'):
+        return tail[:4]
+    else:
+        return tail
+
+
+def uri_to_name(uri):
+    uri_bits = urlparse.urlsplit(uri)
+    host = uri_bits.netloc
+    host, x, path_base = host.partition(':')
+    path_full = uri_bits.path
+    if path_base != '':
+        path_full = path_base + path_full
+
+    name = path_full.split('/')[-1]
+    if name.endswith('.git'):
+        name = name[:4]
+    return name
+
+
+def parse_arg(arg):
+    """ 
+    Parse an argument into a dictionary with the keys:
+        'uri' - This is a URI to point to a repository.  If it is a local file, no network cloning is done
+        'good' - Good changeset
+        'bad' - Bad changeset
+        'local_path' - This is the path on the local disk relative to os.getcwd() that contains the repository
+
+    The arguments that are parsed by this function are in the format:
+        [GIT|HG][URI->]LOCAL_PATH@GOOD..BAD
+
+    The seperators are '->', '..' and '@', quotes exclusive.  The URI and '->' are optional
+    """
+    arg_data = {}
+    uri_sep = '@'
+    rev_sep = '..'
+    lp_sep = '->'
+
+    if arg.startswith('HG'):
+        vcs = 'hg'
+        arg = arg[2:]
+    elif arg.startswith('GIT'):
+        vcs = 'git'
+        arg = arg[3:]
+    else:
+        vcs = None # Careful, this gets used below because we want to
+        # share the URI parsing logic, but we do the hardcodes up here
+
+    # Let's tease out the URI and revision range
+    uri, x, rev_range = arg.partition(uri_sep)
+    if x != uri_sep:
+        raise InvalidArg("Argument '%s' is not properly formed" % arg)
+
+    # Now let's get the good and bad changesets
+    arg_data['good'], x, arg_data['bad'] = rev_range.partition(rev_sep)
+    if x != rev_sep:
+        raise InvalidArg("Argument '%s' is not properly formed" % arg)
+    
+    if os.path.exists(uri):
+        arg_data['local_path'] = uri
+    else:
+        if lp_sep in uri:
+            uri, x, local_path = uri.partition(lp_sep)
+            name = uri_to_name(uri)
+        else:
+            name = uri_to_name(uri)
+            local_path = os.path.join(os.getcwd(), 'repos', name)
+
+    if vcs == None:
+        git_urls = ('github.com', 'codeaurora.org', 'linaro.org', 'git.mozilla.org')
+        hg_urls = ('hg.mozilla.org')
+        if uri.startswith("git://") or uri.endswith(".git"):
+            vcs = 'git'
+        else:
+            for hg_url in hg_urls:
+                if hg_url in uri:
+                    if vcs:
+                        raise Exception("Multiple clues to VCS system")
+                else:
+                    vcs = 'hg'
+            for git_url in git_urls:
+                if git_url in uri:
+                    if vcs:
+                        raise Exception("Multiple clues to VCS system")
+                else:
+                    vcs = 'git'
+
+    if vcs:
+        arg_data['vcs'] = vcs
+    else:
+        raise Exception("Could not determine VCS system")
+
+    arg_data['uri'] = uri
+    arg_data['name'] = local_path_to_name(local_path)
+    arg_data['local_path'] = local_path
+    return arg_data
+
+
+def make_arg(arg_data):
+    """ I am the reverse of parse_arg.  I am here in case someone else wants to
+    generate these strings"""
+    assert arg_data['uri'] == arg_data['local_path'], "unimplemented"
+    return "%(local_path)s@%(good)s..%(bad)s" % arg_data
 
 
 def main():
     projects = []
-    parser = OptionParser("%prog - I bisect gecko and gaia!")
+    parser = OptionParser("%prog - I bisect repositories!")
     # There should be an option for a script that figures out if a given pairing is
     # good or bad
     parser.add_option("--script", "-x", help="Script to run.  Return code 0 \
@@ -316,53 +424,32 @@ def main():
                       dest="follow_merges", default=True, action="store_false")
     opts, args = parser.parse_args()
 
-    class InvalidArg(exception): pass
-    
-    def parse_arg(arg):
-        arg_data = {}
-        uri_sep = '@'
-        rev_sep = '..'
-        uri, x, rev_range = arg.partition(uri_sep)
-        if x != uri_sep:
-            raise InvalidArg("Argument '%s' is not properly formed" % arg)
-        arg_data['good'], x, arg_data['bad'] = rev_range.partition(rev_sep)
-        if x != rev_sep:
-            raise InvalidArg("Argument '%s' is not properly formed" % arg)
-        
-        if os.path.exists(uri):
-            print "Path exists, reusing"
-            arg_data['local_path'] = uri
-            arg_data['uri'] = uri
-        else:
-            pass # Here's where we 
-
-
-
-
-    # ARG FORMAT: URI@GOOD..BAD
-    for arg in args:
-
-
-    
     global_options['follow_merges'] = opts.follow_merges
 
-    for i in project_names:
-        project = Project(name=i,
-                          url=getattr(opts, "%s_url"%i),
-                          branch=getattr(opts, "%s_branch"%i),
-                          good=getattr(opts, "good_%s"%i),
-                          bad=getattr(opts, "bad_%s"%i),
-                          vcs=getattr(opts, "vcs_%s"%i))
-        projects.append(project)
+    for arg in args:
+        try:
+            repo_data = parse_arg(arg)
+        except InvalidArg as ia:
+            print ia
+            parser.print_help()
+            parser.exit(2)
+
+        projects.append(Project(
+            name = repo_data['name'],
+            url = repo_data['uri'],
+            local_path = repo_data['local_path'],
+            good = repo_data['good'],
+            bad = repo_data['bad'],
+            vcs = repo_data['vcs'],
+        ))
 
     combined_history = build_history(projects)
-    found = bisect(combined_history, opts.script, combined_history)
-    print "="*80
+    found = bisect(combined_history, opts.script)
     print "Found:"
     for rev in found:
         print "  * %s@%s" % (rev.prj.name, rev.h)
     print "This was revision pair %d of %d total revision pairs" % \
-    (combined_history.index(found), len(combined_history))
+    (combined_history.index(found) + 1, len(combined_history))
 
 
 if __name__ == "__main__":
