@@ -326,7 +326,7 @@ def script_evaluator(script, history):
     log.debug("Running evaluator with %s", script)
     rc = run_cmd(command=script, rc_only=True)
     log.debug("Script returned %d", rc)
-    return rc
+    return rc == 0
 
 
 def interactive_evaluator(history):
