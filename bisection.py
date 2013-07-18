@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 
-import json
 import sys
 import os
-import subprocess as sp
-import shutil
-from optparse import OptionParser
-import math
+import subprocess
+import optparse
 import tempfile
+import logging
+import math # Using math.log to determine how many iterations remain
+import urlparse # Used to split apart URLs in parse_arg
 
-import urlparse
+import isodate # Used to parse dates from Git's broken ISO8601 output to tuples
 
-import isodate
+log = logging.getLogger(__name__)
 
 # Store global options.  Probably a bad idea
 global_options = {}
@@ -43,21 +43,21 @@ def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
         raise Exception("You are trying to include *and* ignore stderr, wtf?")
     elif inc_err:
         kwargs = kwargs.copy()
-        kwargs['stderr'] = sp.STDOUT
+        kwargs['stderr'] = subprocess.STDOUT
     elif ignore_err:
         kwargs = kwargs.copy()
-        kwargs['stderr'] = sp.PIPE # This might be a bad idea, research this!
+        kwargs['stderr'] = subprocess.PIPE # This might be a bad idea, research this!
 
     if rc_only:
-        func = sp.call
+        func = subprocess.call
         # This probably leaves a bunch of wasted open file handles.  Meh
         kwargs['stderr'] = kwargs['stdout'] = devnull
     elif read_out:
-        func = sp.check_output
+        func = subprocess.check_output
     else:
-        func = sp.check_call
+        func = subprocess.check_call
 
-    #print "command: %s, workdir=%s" % (command, workdir)
+    log.debug("command=%s, workdir=%s, env=%s, kwargs=%s", command, workdir, env or {}, kwargs)
     return func(command, cwd=workdir, env=full_env, **kwargs)
 
 
@@ -68,7 +68,7 @@ class Repository(object):
         self.name = name
         self.url = url
         self.local_path = local_path
-        print "Setting up", name if name == local_path else "%s at %s" % (name, local_path)
+        log.info("Setting up %s", name if name == local_path else "%s at %s" % (name, local_path))
 
     def sanitize(self):
         assert 0
@@ -100,8 +100,10 @@ class GitRepository(Repository):
     def __init__(self, *args):
         Repository.__init__(self, *args)
         if os.path.exists(self.local_path) and os.path.isdir(self.local_path):
+            log.debug("%s already exists, updating", self.name)
             self.update()
         else:
+            log.debug("%s does not exist, cloning", self.name)
             self.clone()
 
     def clone(self):
@@ -110,21 +112,20 @@ class GitRepository(Repository):
         if not os.path.exists(local_path_base) and local_path_base != '':
             os.makedirs(local_path_base)
 
-        if not os.path.exists(self.url) and global_options['no_network']:
-            raise Exception("Cannot clone across network because --no-network/-N was used")
         run_cmd(["git", "clone", self.url, self.local_path])
 
     def update(self):
         # Assuming here that all fetches go over the network
-        if not global_options['no_network']:
-            run_cmd(["git", "fetch", "--all"], workdir=self.local_path)
+        pass#run_cmd(["git", "fetch", "--all"], workdir=self.local_path)
 
     def get_rev(self):
-        return run_cmd(["git", "rev-parse", "HEAD"])
+        return run_cmd(["git", "rev-parse", "HEAD"], workdir=self.local_path)
 
     def set_rev(self, rev):
         # This will create a detached head
+        run_cmd(["git", "reset", "--hard", "HEAD"], workdir=self.local_path)
         run_cmd(["git", "checkout", rev], workdir=self.local_path)
+        log.debug("Set %s to %s", self.local_path, rev)
 
     def validate_rev(self, rev):
         pass
@@ -142,7 +143,7 @@ class GitRepository(Repository):
         sep = " --- "
         command = ["git", "log"]
 
-        if global_options['follow_merges']:
+        if not global_options['follow_merges']:
             command.append("--first-parent")
 
         command.extend(["--date-order", "%s..%s" % (start, end),
@@ -202,9 +203,11 @@ class Project(object):
         elif self.vcs == 'hg':
             repocls = HgRepository
         else:
-            print >> sys.stderr, "ERROR: Unsupported repository type"
+            log.error("Unsupported repository type")
             exit(1)
-
+        
+        log.debug("Using %s for %s", str(repocls), self.name)
+        
         self.repository = repocls(self.name, self.url, self.local_path)
 
     def rev_list(self):
@@ -213,6 +216,9 @@ class Project(object):
             self.last_rl = self.repository.rev_list(self.good, self.bad)
 
         return self.last_rl
+
+    def set_rev(self, rev):
+        return self.repository.set_rev(rev)
 
     def __str__(self):
         return "Name: %(name)s, Url: %(url)s, Good: %(good)s, Bad: %(bad)s, VCS: %(vcs)s" % self.__dict__
@@ -228,7 +234,7 @@ class Rev(object):
         self.date = date
 
     def __str__(self):
-        return "%s, %s, %s" % (self.h, self.prj.name, self.date)
+        return "%s@%s, %s" % (self.prj.name, self.h, self.date)
     __repr__=__str__
 
 
@@ -240,8 +246,11 @@ class N(object):
         self.n = n
 
     def __str__(self):
-        return 'self: %s, next: %s, data: %s' % (id(self), id(self.n), str(self.data))
+        return str(self.data)
     __repr__ = __str__
+
+
+class InvalidArg(Exception): pass
 
 
 def make_ll(l):
@@ -265,15 +274,19 @@ def build_history(projects):
     def oldest(l):
         """Find the oldest head of a linked list and return it"""
         if len(l) == 1:
+            log.debug("There was only one item to evaluate, returning %s", l[0].data)
             return l[0]
         else:
             oldest = l[0]
             for other in l[1:]:
                 if other.data.date > oldest.data.date:
                     oldest = other
+            log.debug("Found oldest: %s", oldest.data)
             return oldest
 
     def create_line(prev, new):
+        log.debug("prev: %s", prev)
+        log.debug("new:  %s", new)
         """ This function creates a line.  It will use the values in prev, joined with the value of new"""
         if len(new) == 1:
             # If we're done finding the oldest, we want to make a new line then
@@ -281,9 +294,11 @@ def build_history(projects):
             global_rev_list.append([x.data for x in prev + new])
             rli = rev_lists.index(new[0])
             if rev_lists[rli].n == None:
+                log.debug("Found the last revision for %s", rev_lists[rli].data.prj.name)
                 last_revs.append(rev_lists[rli])
                 del rev_lists[rli]
             else:
+                log.debug("Moving pointer for %s forward", rev_lists[rli].data.prj.name)
                 rev_lists[rli] = rev_lists[rli].n
             return
         else:
@@ -292,21 +307,26 @@ def build_history(projects):
             if not o in prev:
                 prev.append(o)
             del new[new.index(o)]
+            log.debug("Building a line, %.2f%% complete ", float(len(prev)) / ( float(len(prev) + len(new))) * 100)
             create_line(prev, new)
 
     while len(rev_lists) > 0:
         create_line(last_revs[:], rev_lists[:])
 
+    log.debug("Global History:")
+    map(log.debug, global_rev_list)
     return global_rev_list
 
 
-def script_evaluator(script, history):
-    print "Running evaluator with %s" % script
-    return run_cmd(command=script, rc_only=True) == 0
-
-
 def _history_lines(line, prefix="  * "):
-    return "\n".join(["%s%s@%s" % (prefix, rev.prj.name, rev.h) for rev in line])
+    return ["%s%s@%s" % (prefix, rev.prj.name, rev.h) for rev in line]
+
+
+def script_evaluator(script, history):
+    log.debug("Running evaluator with %s", script)
+    rc = run_cmd(command=script, rc_only=True)
+    log.debug("Script returned %d", rc)
+    return rc
 
 
 def interactive_evaluator(history):
@@ -317,7 +337,6 @@ def interactive_evaluator(history):
     # 4. Return True if RC=69 and False if RC=96
     # Improvments:
     #   * history bash command to show which changesets are already dismissed
-    list_of_revs = _history_lines(history)
     rcfile = """
     echo
     echo "To mark a changeset, type either 'good' or 'bad'"
@@ -333,59 +352,58 @@ def interactive_evaluator(history):
 
     """
     env = dict(os.environ)
-    env['PS1'] = "BISECT: "
+    env['PS1'] = "BISECT: $ "
     env['PS2'] = "> "
     env['IGNOREEOF'] = str(1024*4)
     tmpfd, tmpn = tempfile.mkstemp()
     os.write(tmpfd, rcfile)
     os.close(tmpfd)
 
-    rc = sp.call([os.environ['SHELL'], "--rcfile", tmpn, "--noprofile"], env=env)
+    rc = subprocess.call([os.environ['SHELL'], "--rcfile", tmpn, "--noprofile"], env=env)
 
     if os.path.exists(tmpn):
         os.unlink(tmpn)
 
     if rc == 69:
-        return True
+        rv = True
     elif rc == 96:
-        return False
+        rv = False
     elif rc == 0:
-        print "Received an exit command from interactive console, exiting bisection completely"
+        log.warning("Received an exit command from interactive console, exiting bisection completely")
         sys.exit(1)
     else:
         raise Exception("An unexpected exit code '%d' occured in the interactive prompt" % rc)
+    log.debug("Interactive evaluator returned %d", rc)
+    return rv
 
 
-def _bisect(history, evaluator, all_history, num=0):
-    print '-' * 80
+def _bisect(history, evaluator, max_recur, num):
+    log.info('-' * 80)
     middle = len(history) / 2
     if len(history) == 1:
+        log.debug("Found commit: %s", history[0])
         return history[0]
     else:
         cur = history[middle]
-        total = round(math.log(len(all_history) + len(all_history) % 2, 2))
-        print "Running test %d of %d or %d: " % (num + 1, total - 1, total)
-        print _history_lines(cur)
-        #for rev in cur:
-        #    print "  * %s@%s" % (rev.prj.name, rev.h)
+        log.info("Running test %d of %d or %d: ", num + 1, max_recur - 1, max_recur)
+        map(log.info, _history_lines(cur))
         for rev in cur:
-            rev.prj.repository.set_rev(rev.h)
+            log.debug("Setting revisions for %s", rev)
+            rev.prj.set_rev(rev.h)
         outcome = evaluator(cur)
 
         if outcome:
-            print "Test passed"
-            return _bisect(history[middle:], evaluator, all_history, num+1)
+            log.info("Test passed")
+            return _bisect(history[middle:], evaluator, max_recur, num+1)
         else:
-            print "Test failed"
-            return _bisect(history[:middle], evaluator, all_history, num+1)
+            log.info("Test failed")
+            return _bisect(history[:middle], evaluator, max_recur, num+1)
 
 
 # Make the first entry into the function a little tidier
 def bisect(history, evaluator):
-    return _bisect(history, evaluator, history, 0)
-
-
-class InvalidArg(Exception): pass
+    max_recur = round(math.log(len(history) + len(history) % 2, 2))
+    return _bisect(history, evaluator, max_recur, 0)
 
 
 def local_path_to_name(lp):
@@ -440,7 +458,7 @@ def parse_arg(arg):
         arg = arg[3:]
     else:
         vcs = None # Careful, this gets used below because we want to
-        # share the URI parsing logic, but we do the hardcodes up here
+        # share the URI parsing logic, but we do the vcs token up here
 
     # Let's tease out the URI and revision range
     uri, x, rev_range = arg.partition(uri_sep)
@@ -455,6 +473,7 @@ def parse_arg(arg):
     if os.path.exists(uri):
         local_path = uri
     else:
+        # Non-local URIs need to determine the name and local_path
         if lp_sep in uri:
             uri, x, local_path = uri.partition(lp_sep)
             name = uri_to_name(uri)
@@ -462,9 +481,12 @@ def parse_arg(arg):
             name = uri_to_name(uri)
             local_path = os.path.join(os.getcwd(), 'repos', name)
 
+    # If the arg didn't start with a vcs token, we need to guess whether it's Git or HG
     if vcs == None:
         git_urls = ('github.com', 'codeaurora.org', 'linaro.org', 'git.mozilla.org')
         hg_urls = ('hg.mozilla.org')
+        # Git can give itself away at times.  Yes, someone could have an hg repo that
+        # ends with .git.  Wanna fight about it?
         if uri.startswith("git://") or uri.endswith(".git"):
             vcs = 'git'
         else:
@@ -489,6 +511,7 @@ def parse_arg(arg):
     arg_data['uri'] = uri
     arg_data['name'] = local_path_to_name(local_path)
     arg_data['local_path'] = local_path
+    log.debug("Parsed '%s' to '%s'", arg, arg_data)
     return arg_data
 
 
@@ -500,44 +523,47 @@ def make_arg(arg_data):
 
 
 def main():
-    projects = []
-    parser = OptionParser("%prog - I bisect repositories!")
-    # There should be an option for a script that figures out if a given pairing is
-    # good or bad
+    parser = optparse.OptionParser("%prog - I bisect repositories!")
     parser.add_option("--script", "-x", help="Script to run.  Return code 0 \
                       means the current changesets are good, Return code 1 means \
                       that it's bad", dest="script")
     parser.add_option("--follow-merges", help="Should git/hg log functions \
                       follow both sides of a merge or only the mainline.\
                       This equates to --first-parent in git log",
-                      dest="follow_merges", default=True, action="store_false")
-    parser.add_option("--no-network", "-N", help="Don't do VCS things that require networking",
-                      dest="no_network", action="store_true")
+                      dest="follow_merges", action="store_false")
     parser.add_option("-i", "--interactive", help="Interactively determine if the changeset is good",
-                      dest="interactive", default=False, action="store_true")
+                      dest="interactive", action="store_true")
+    parser.add_option("-v", "--verbose", help="Logfile verbosity", action="store_true", dest="verbose")
     opts, args = parser.parse_args()
 
+    file_handler = logging.FileHandler('bisection.log')
+    file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(filename)s/%(funcName)s:%(lineno)d - %(message)s"))
+    log.addHandler(file_handler)
+    
+    if opts.verbose:
+        file_handler.setLevel(logging.DEBUG)
+    else:
+        log.setLevel(logging.INFO)
+        file_handler.setLevel(logging.INFO)
+
     if opts.script and opts.interactive:
-        print >> sys.stderr, "You can't specify a script *and* interactive mode"
+        log.error("You can't specify a script *and* interactive mode")
         parser.print_help()
         parser.exit(2)
     elif opts.script:
         evaluator = lambda x: script_evaluator(opts.script, x)
-    elif opts.interactive:
-        evaluator = lambda x: interactive_evaluator(x)
     else:
-        print >> sys.stderr, "You must specify either a script or use interactive mode"
-        parser.print_help()
-        parser.exit(2)
+        evaluator = lambda x: interactive_evaluator(x)
 
     global_options['follow_merges'] = opts.follow_merges
-    global_options['no_network'] = opts.no_network
+
+    projects = []
 
     for arg in args:
         try:
             repo_data = parse_arg(arg)
         except InvalidArg as ia:
-            print ia
+            log.error(ia)
             parser.print_help()
             parser.exit(2)
 
@@ -552,11 +578,15 @@ def main():
 
     combined_history = build_history(projects)
     found = bisect(combined_history, evaluator)
-    print "Found:"
-    print _history_lines(found)
-    print "This was revision pair %d of %d total revision pairs" % \
-    (combined_history.index(found) + 1, len(combined_history))
+    log.info("Found:")
+    map(log.info, _history_lines(found))
+    log.info("This was revision pair %d of %d total revision pairs" % \
+    (combined_history.index(found) + 1, len(combined_history)))
 
 
 if __name__ == "__main__":
+    lh = logging.StreamHandler()
+    log.addHandler(lh)
+    lh.setLevel(logging.INFO)
+    log.setLevel(logging.DEBUG)
     main()

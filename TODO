@@ -1,7 +1,5 @@
-* DONE INTERFACE N repository bisection (no interface to test, but already using this code path for 2-repo comparisons
 * hg
-* DONE reusing repo-managed repositories
-* DONE much better user interface
-* DONE interactive changeset evaluation
-* logging
 * tests
+
+Specific code level things to clean up:
+* Merge Rev and N classes.  No reason for the needless abstraction of Nodes
