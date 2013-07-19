@@ -11,7 +11,6 @@ log = logging.getLogger(__name__)
 
 def build_history(projects):
     global_rev_list = []
-    rev_lists = []
     last_revs = []
     rev_lists = [x.rev_ll() for x in projects]
 
