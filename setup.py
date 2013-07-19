@@ -5,7 +5,7 @@ setup(
     packages = find_packages(),
     entry_points = {
         'console_scripts': [
-            'bisect = bisect_b2g.bisection:main'
+            'bisect = bisect_b2g.driver:main'
         ]
     },
     install_requires = ["isodate"],
