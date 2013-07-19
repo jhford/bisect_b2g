@@ -12,54 +12,13 @@ from xml.etree import ElementTree
 
 import isodate # Used to parse dates from Git's broken ISO8601 output to tuples
 
+import bisect_b2g
+from bisect_b2g.util import run_cmd
+
 log = logging.getLogger(__name__)
 
 # Store global options.  Probably a bad idea
 global_options = {}
-
-devnull = open(os.devnull, 'w+')
-
-def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
-            ignore_err=True, env=None, delete_env=False, rc_only=False, **kwargs):
-    """ Wrap subprocess in a way that I like.
-    command: string or list of the command to run
-    workdir: directory to do the work in
-    inc_err: include stderr in the output string returned
-    read_out: decide whether we're going to want output returned or printed
-    env: add this dictionary to the default environment
-    delete_env: delete these environment keys
-    rc_only: run the command, ignore output"""
-
-    full_env = dict(os.environ)
-
-    if env:
-        full_env.update(env)
-
-    if delete_env:
-        for d in delete_env:
-            if full_env.has_key(d):
-                del full_env[d]
-
-    if inc_err and ignore_err:
-        raise Exception("You are trying to include *and* ignore stderr, wtf?")
-    elif inc_err:
-        kwargs = kwargs.copy()
-        kwargs['stderr'] = subprocess.STDOUT
-    elif ignore_err:
-        kwargs = kwargs.copy()
-        kwargs['stderr'] = subprocess.PIPE # This might be a bad idea, research this!
-
-    if rc_only:
-        func = subprocess.call
-        # This probably leaves a bunch of wasted open file handles.  Meh
-        kwargs['stderr'] = kwargs['stdout'] = devnull
-    elif read_out:
-        func = subprocess.check_output
-    else:
-        func = subprocess.check_call
-
-    log.debug("command=%s, workdir=%s, env=%s, kwargs=%s", command, workdir, env or {}, kwargs)
-    return func(command, cwd=workdir, env=full_env, **kwargs)
 
 
 class Repository(object):
@@ -561,13 +520,14 @@ def main():
     opts, args = parser.parse_args()
 
     # Set up logging
-    log.setLevel(logging.DEBUG)
+    bisect_b2g_log = logging.getLogger(bisect_b2g.__name__)
+    bisect_b2g_log.setLevel(logging.DEBUG)
     lh = logging.StreamHandler()
     lh.setLevel(logging.INFO)
-    log.addHandler(lh)
+    bisect_b2g_log.addHandler(lh)
     file_handler = logging.FileHandler('bisection.log')
     file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(filename)s/%(funcName)s:%(lineno)d - %(message)s"))
-    log.addHandler(file_handler)
+    bisect_b2g_log.addHandler(file_handler)
     
     if opts.verbose:
         file_handler.setLevel(logging.DEBUG)
