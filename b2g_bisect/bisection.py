@@ -8,6 +8,7 @@ import tempfile
 import logging
 import math # Using math.log to determine how many iterations remain
 import urlparse # Used to split apart URLs in parse_arg
+from xml.etree import ElementTree
 
 import isodate # Used to parse dates from Git's broken ISO8601 output to tuples
 
@@ -175,16 +176,39 @@ class HgRepository(Repository):
         run_cmd(["hg", "pull", "-u"], workdir=self.local_path)
 
     def get_rev(self):
-        return run_cmd(["hg", "identify"])
+        return run_cmd(["hg", "log", "-l1", "--template", "{node}"], workdir=self.local_path).strip()
 
     def set_rev(self, rev):
-        run_cmd(["hg", "update", "--rev", rev], workdir=self.local_path)
+        run_cmd(["hg", "update", "-C", "--rev", rev], workdir=self.local_path)
 
     def validate_rev(self, rev):
         assert 0
 
     def rev_list(self, start, end):
-        assert 0
+        # HG is a pain in the butt.  For good..bad,
+        # we need to hg up -r good ; hg log -r bad.
+        log.debug("Fetching HG revision list for %s..%s", start, end)
+        sep = " --- "
+        template = "{node}%s{date}" % sep
+        old_rev = self.get_rev()
+        self.set_rev(start)
+        command = ["hg", "log", "-r", end, "--style", "xml"]
+
+        if not global_options["follow_merges"]:
+            command.append("--no-merges")
+
+        raw_xml = run_cmd(command, self.local_path).strip()
+        root = ElementTree.XML(raw_xml)
+        output = []
+
+        for log_entry in root.findall('logentry'):
+            d = isodate.parse_datetime(log_entry.find('date').text)
+            h = log_entry.get('node')
+            output.append((h, d))
+        
+        self.set_rev(old_rev)
+
+        return output
 
 
 class Project(object):
