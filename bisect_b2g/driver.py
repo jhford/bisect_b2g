@@ -197,7 +197,7 @@ def main():
     combined_history = build_history(projects)
     found = bisect(combined_history, evaluator)
     log.info("Found:")
-    map(log.info, ["  * %s@%s" % (rev.prj.name, rev.h) for rev in found])
+    map(log.info, ["  * %s@%s" % (rev.prj.name, rev.hash) for rev in found])
     log.info("This was revision pair %d of %d total revision pairs" % \
     (combined_history.index(found) + 1, len(combined_history)))
 

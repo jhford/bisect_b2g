@@ -4,9 +4,7 @@ from xml.etree import ElementTree
 
 import isodate
 
-
 from bisect_b2g.util import run_cmd
-
 
 log = logging.getLogger(__name__)
 
@@ -181,12 +179,14 @@ class Project(object):
         
         self.repository = repocls(self.name, self.url, self.local_path, follow_merges=self.follow_merges)
 
-    def rev_list(self):
-        if not hasattr(self, 'last_rl_id') or self.last_rl_id != (self.good, self.bad):
-            self.last_rl_id = (self.good, self.bad)
-            self.last_rl = self.repository.rev_list(self.good, self.bad)
+    def rev_ll(self):
+        rev_list = reversed(self.repository.rev_list(self.good, self.bad))
+        head = None    
+    
+        for h, date in rev_list:
+            head = Rev(h, self, date, head)
 
-        return self.last_rl
+        return head
 
     def set_rev(self, rev):
         return self.repository.set_rev(rev)
@@ -198,13 +198,14 @@ class Project(object):
 
 class Rev(object):
 
-    def __init__(self, h, prj, date):
+    def __init__(self, hash, prj, date, next_rev=None):
         object.__init__(self)
-        self.h = h
+        self.hash = hash
         self.prj = prj
         self.date = date
+        self.next_rev = next_rev
 
     def __str__(self):
-        return "%s@%s, %s" % (self.prj.name, self.h, self.date)
+        return "%s@%s" % (self.prj.name, self.hash)
     __repr__=__str__
 
