@@ -120,7 +120,7 @@ class GitRepository(Repository):
         pass#run_cmd(["git", "fetch", "--all"], workdir=self.local_path)
 
     def get_rev(self):
-        return run_cmd(["git", "rev-parse", "HEAD"], workdir=self.local_path)
+        return run_cmd(["git", "rev-parse", "HEAD"], workdir=self.local_path).strip()
 
     def set_rev(self, rev):
         # This will create a detached head
@@ -149,7 +149,7 @@ class GitRepository(Repository):
 
         command.extend(["--date-order", "%s..%s" % (start, end),
                         '--pretty=%%H%s%%ci' % sep])
-        raw_output = run_cmd(command, self.local_path )
+        raw_output = run_cmd(command, self.local_path)
         intermediate_output = [x.strip() for x in raw_output.split('\n')]
         output = []
 
@@ -560,6 +560,11 @@ def main():
     parser.add_option("-v", "--verbose", help="Logfile verbosity", action="store_true", dest="verbose")
     opts, args = parser.parse_args()
 
+    # Set up logging
+    log.setLevel(logging.DEBUG)
+    lh = logging.StreamHandler()
+    lh.setLevel(logging.INFO)
+    log.addHandler(lh)
     file_handler = logging.FileHandler('bisection.log')
     file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(filename)s/%(funcName)s:%(lineno)d - %(message)s"))
     log.addHandler(file_handler)
@@ -582,6 +587,11 @@ def main():
     global_options['follow_merges'] = opts.follow_merges
 
     projects = []
+
+    if len(args) < 2:
+        log.error("You must specify at least two repositories")
+        parser.print_help()
+        parser.exit()
 
     for arg in args:
         try:
@@ -609,8 +619,4 @@ def main():
 
 
 if __name__ == "__main__":
-    lh = logging.StreamHandler()
-    log.addHandler(lh)
-    lh.setLevel(logging.INFO)
-    log.setLevel(logging.DEBUG)
     main()
