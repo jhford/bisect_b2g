@@ -66,29 +66,6 @@ def validate_history(history):
     pass
 
 
-def dump_history(projects, history, filename):
-    tree = ET.ElementTree()
-    root = ET.Element('history')
-    root.text = '\n'
-    root.tail = '\n'
-    tree._setroot(root)
-    for prj in projects:
-        p = ET.SubElement(root, 'project')
-        p.set('name', prj.name)
-        p.set('good', prj.good)
-        p.set('bad', prj.bad)
-        p.tail = '\n'
-    for line in history:
-        l = ET.SubElement(root, 'line')
-        l.text = '\n  '
-        l.tail = '\n'
-        for rev in sorted(line, key=lambda x: x.prj.name):
-            r = ET.SubElement(l, rev.prj.name)
-            r.set('commit', rev.hash)
-            r.set('date', isodate.datetime_isoformat(rev.date))
-            r.tail = '\n  '
-        r.tail = '\n'
-    
-    return tree.write(filename)
+
 
 
