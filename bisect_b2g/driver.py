@@ -7,7 +7,8 @@ log = logging.getLogger(__name__)
 
 import bisect_b2g
 from bisect_b2g.repository import Project
-from bisect_b2g.bisection import build_history, bisect
+from bisect_b2g.bisection import Bisection
+from bisect_b2g.history import build_history
 from bisect_b2g.evaluator import script_evaluator, interactive_evaluator
 
 
@@ -195,11 +196,13 @@ def main():
         ))
 
     combined_history = build_history(projects)
-    found = bisect(combined_history, evaluator)
+    bisection = Bisection(projects, combined_history, evaluator)
+    bisection.write('history.html')
+    bisection.write('history.xml', fmt='xml')
     log.info("Found:")
-    map(log.info, ["  * %s@%s" % (rev.prj.name, rev.hash) for rev in found])
+    map(log.info, ["  * %s@%s" % (rev.prj.name, rev.hash) for rev in bisection.found])
     log.info("This was revision pair %d of %d total revision pairs" % \
-    (combined_history.index(found) + 1, len(combined_history)))
+    (combined_history.index(bisection.found) + 1, len(combined_history)))
 
 
 if __name__ == "__main__":

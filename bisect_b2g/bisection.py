@@ -1,91 +1,167 @@
-import sys
-import os
 import logging
 import math
+import xml.etree.ElementTree as ET
+
+import isodate
 
 from bisect_b2g.repository import Project, Rev
 
 
 log = logging.getLogger(__name__)
 
+class Bisection(object):
 
-def build_history(projects):
-    global_rev_list = []
-    last_revs = []
-    rev_lists = [x.rev_ll() for x in projects]
+    def __init__(self, projects, history, evaluator):
+        object.__init__(self)
+        self.projects = projects
+        self.history = history
+        self.evaluator = evaluator
+        self.max_recursions = round(math.log(len(history) + len(history) % 2, 2))
+        self.pass_i = []
+        self.fail_i = []
+        self.order = []
+        self.found = self._bisect(self.history, 0)
+        self._found_index = self.history.index(self.found)
 
-    def newest(l):
-        """Find the newest head of a linked list and return it"""
-        if len(l) == 1:
-            log.debug("There was only one item to evaluate, returning %s", l[0])
-            return l[0]
+
+    def _bisect(self, history, num):
+        middle = len(history) / 2
+        overall_index = self.history.index(history[middle])
+        self.order.append(overall_index)
+        if len(history) == 1:
+            self.pass_i.append(overall_index)
+            if num == self.max_recursions - 1:
+                log.info("Psych!") # Sometimes, we do log2(N), othertimes log2(N)-1
+                log.debug("We don't need to do the last recursion")
+            return history[0]
         else:
-            newest = l[0]
-            for other in l[1:]:
-                if other.date > newest.date:
-                    newest = other
-            log.debug("Found newest: %s", newest)
-            return newest
+            cur = history[middle]
+            log.info("Running test %d of %d", num + 1, 
+                     self.max_recursions)
+            
+            map(log.info, cur)
+            
+            for rev in cur:
+                log.debug("Setting revision for %s" % rev)
+                rev.prj.set_rev(rev.hash)
 
-    def create_line(prev, new):
-        log.debug("prev: %s", prev)
-        log.debug("new:  %s", new)
-        """ This function creates a line.  It will use the values in prev, joined with the value of new"""
-        if len(new) == 1:
-            # If we're done finding the newest, we want to make a new line then
-            # move the list of the newest one forward
-            global_rev_list.append(prev + new)
-            rli = rev_lists.index(new[0])
-            if rev_lists[rli].next_rev == None:
-                log.debug("Found the last revision for %s", rev_lists[rli].prj.name)
-                last_revs.append(rev_lists[rli])
-                del rev_lists[rli]
+            outcome = self.evaluator(cur)
+
+            log.info("Test %s", "passed" if outcome else "failed")
+            
+            if outcome:
+                self.pass_i.append(overall_index)
+                return self._bisect(history[middle:], num + 1)
             else:
-                log.debug("Moving pointer for %s forward", rev_lists[rli].prj.name)
-                rev_lists[rli] = rev_lists[rli].next_rev
-            return
+                self.fail_i.append(overall_index)
+                return self._bisect(history[:middle], num + 1)
+                    
+    def write(self, filename, fmt='html'):
+        if fmt == 'html':
+            return self.write_html(filename)
+        elif fmt == 'xml':
+            return self.write_xml(filename)
         else:
-            # Otherwise, we want to recurse to finding the newest objects
-            o = newest(new)
-            if not o in prev:
-                prev.append(o)
-            del new[new.index(o)]
-            log.debug("Building a line, %.2f%% complete ", float(len(prev)) / ( float(len(prev) + len(new))) * 100)
-            create_line(prev, new)
-
-    while len(rev_lists) > 0:
-        create_line(last_revs[:], rev_lists[:])
-
-    log.debug("Global History:")
-    map(log.debug, global_rev_list)
-    return global_rev_list
+            raise Exception("Format '%s' is not implemented" % fmt)
 
 
-def _bisect(history, evaluator, max_recur, num):
-    log.info('-' * 80)
-    middle = len(history) / 2
-    if len(history) == 1:
-        log.debug("Found commit: %s", history[0])
-        return history[0]
-    else:
-        cur = history[middle]
-        log.info("Running test %d of %d or %d: ", num + 1, max_recur - 1, max_recur)
-        map(log.info, ["  * %s@%s" % (rev.prj.name, rev.hash) for rev in cur])
-        for rev in cur:
-            log.debug("Setting revisions for %s", rev)
-            rev.prj.set_rev(rev.hash)
-        outcome = evaluator(cur)
+    def write_html(self, filename):
+        """ Holy shit, why don't I use a templating engine?"""
+        style_rules = ['table { border-collapse: collapse }',
+                       'td { border: solid 1px black }',
+                       'thead { border-bottom: solid 3px red }',
+                       'tr.pass-line { background: green }',
+                       'tr.fail-line { background: red }',
+                       'tr.found-line { background: blue ; color: white }',
+                       'tr.untested-line { background: grey ; color: dark-grey }',
+                      ]
+        tree = ET.ElementTree()
+        root = ET.Element('html')
+        root.text = '\n'
+        root.tail = '\n'
+        tree._setroot(root)
+        head = ET.SubElement(root, 'head')
+        head.text = '\n  '
+        head.tail = '\n'
+        style = ET.SubElement(head, 'style')
+        style.text = "  \n".join(style_rules)
+        style.tail = '\n'
+        body = ET.SubElement(root, 'body')
+        body.text = '\n'
+        body.tail = '\n'
+        table = ET.SubElement(body, 'table')
+        table.text = '\n  '
+        table.tail = '\n  '
+        th = ET.SubElement(table, 'thead')
+        th.text = '\n    '
+        th.tail = '\n  '
+        th = ET.SubElement(th, 'th')
+        th.text = 'Count'
+        for prj in sorted(self.projects, key=lambda x: x.name):
+            for i in ('Hash', 'Date'):
+                th = ET.SubElement(th, 'th')
+                th.text = '%s %s' % (prj.name, i)
+        th.tail = '\n  '
+        for i in range(len(self.history)):
+            tr = ET.SubElement(table, 'tr')
+            tr.text = '\n    '
+            tr.tail = '\n  '
+            classes = []
+            if i == self._found_index:
+                classes.append('found-line')
+            if i in self.pass_i:
+                classes.append('pass-line')
+            elif i in self.fail_i:
+                classes.append('fail-line')
+            else:
+                classes.append('untested-line')
+            tr.set('class', ' '.join(classes))
+            td = ET.SubElement(tr, 'td')
+            if i in self.order:
+                td.text = "%d (%d)" % (i, self.order.index(i) + 1)
+            else:
+                td.text = str(i+1)
+            for rev in sorted(self.history[i], key=lambda x: x.prj.name):
+                td = ET.SubElement(tr, 'td')
+                td.text = rev.hash 
+                td = ET.SubElement(tr, 'td')
+                td.text = isodate.datetime_isoformat(rev.date)
+            td.tail = '\n  '
+        
+        tree.write(filename, method='html')
 
-        if outcome:
-            log.info("Test passed")
-            return _bisect(history[middle:], evaluator, max_recur, num+1)
-        else:
-            log.info("Test failed")
-            return _bisect(history[:middle], evaluator, max_recur, num+1)
-
-
-# Make the first entry into the function a little tidier
-def bisect(history, evaluator):
-    max_recur = round(math.log(len(history) + len(history) % 2, 2))
-    return _bisect(history, evaluator, max_recur, 0)
+    def write_xml(self, filename):
+        tree = ET.ElementTree()
+        root = ET.Element('history')
+        root.text = '\n'
+        root.tail = '\n'
+        tree._setroot(root)
+        for prj in self.projects:
+            p = ET.SubElement(root, 'project')
+            p.set('name', prj.name)
+            p.set('good', prj.good)
+            p.set('bad', prj.bad)
+            p.tail = '\n'
+        for i in range(len(self.history)):
+            line = self.history[i]
+            l = ET.SubElement(root, 'rev_pair')
+            if i == self._found_index:
+                outcome = 'found'
+            elif i in self.pass_i:
+                outcome = 'pass'
+            elif i in self.fail_i:
+                outcome = 'failed'
+            else:
+                outcome = 'untested'
+            l.set('outcome', outcome)
+            l.text = '\n  '
+            l.tail = '\n'
+            for rev in sorted(line, key=lambda x: x.prj.name):
+                r = ET.SubElement(l, rev.prj.name)
+                r.set('commit', rev.hash)
+                r.set('date', isodate.datetime_isoformat(rev.date))
+                r.tail = '\n  '
+            r.tail = '\n'
+        
+        return tree.write(filename)
 
