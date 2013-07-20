@@ -20,16 +20,16 @@ class Bisection(object):
         self.pass_i = []
         self.fail_i = []
         self.order = []
-        self.found = self._bisect(self.history, 0)
-        self._found_index = self.history.index(self.found)
+        self.found = self._bisect(self.history, 0, 0)
 
 
-    def _bisect(self, history, num):
+    def _bisect(self, history, num, offset_b):
         middle = len(history) / 2
-        overall_index = self.history.index(history[middle])
+        overall_index = middle + offset_b
         self.order.append(overall_index)
         if len(history) == 1:
             self.pass_i.append(overall_index)
+            self.found_i = overall_index
             if num == self.max_recursions - 1:
                 log.info("Psych!") # Sometimes, we do log2(N), othertimes log2(N)-1
                 log.debug("We don't need to do the last recursion")
@@ -51,10 +51,10 @@ class Bisection(object):
             
             if outcome:
                 self.pass_i.append(overall_index)
-                return self._bisect(history[middle:], num + 1)
+                return self._bisect(history[middle:], num + 1, offset_b + middle)
             else:
                 self.fail_i.append(overall_index)
-                return self._bisect(history[:middle], num + 1)
+                return self._bisect(history[:middle], num + 1, offset_b)
                     
     def write(self, filename, fmt='html'):
         if fmt == 'html':
@@ -107,7 +107,7 @@ class Bisection(object):
             tr.text = '\n    '
             tr.tail = '\n  '
             classes = []
-            if i == self._found_index:
+            if i == self.found_i:
                 classes.append('found-line')
             if i in self.pass_i:
                 classes.append('pass-line')
@@ -118,7 +118,7 @@ class Bisection(object):
             tr.set('class', ' '.join(classes))
             td = ET.SubElement(tr, 'td')
             if i in self.order:
-                td.text = "%d (%d)" % (i, self.order.index(i) + 1)
+                td.text = "%d (%d)" % (i + 1, self.order.index(i) + 1)
             else:
                 td.text = str(i+1)
             for rev in sorted(self.history[i], key=lambda x: x.prj.name):
@@ -145,7 +145,7 @@ class Bisection(object):
         for i in range(len(self.history)):
             line = self.history[i]
             l = ET.SubElement(root, 'rev_pair')
-            if i == self._found_index:
+            if i == self.found_i:
                 outcome = 'found'
             elif i in self.pass_i:
                 outcome = 'pass'
