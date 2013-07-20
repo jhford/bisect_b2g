@@ -15,26 +15,26 @@ def build_history(projects):
     last_revs = []
     rev_lists = [x.rev_ll() for x in projects]
 
-    def newest(l):
-        """Find the newest head of a linked list and return it"""
+    def oldest(l):
+        """Find the oldest head of a linked list and return it"""
         if len(l) == 1:
             log.debug("There was only one item to evaluate, returning %s", l[0])
             return l[0]
         else:
-            newest = l[0]
+            oldest = l[0]
             for other in l[1:]:
-                if other.date > newest.date:
-                    newest = other
-            log.debug("Found newest: %s", newest)
-            return newest
+                if other.date < oldest.date:
+                    oldest = other
+            log.debug("Found oldest: %s", oldest)
+            return oldest
 
     def create_line(prev, new):
         log.debug("prev: %s", prev)
         log.debug("new:  %s", new)
         """ This function creates a line.  It will use the values in prev, joined with the value of new"""
         if len(new) == 1:
-            # If we're done finding the newest, we want to make a new line then
-            # move the list of the newest one forward
+            # If we're done finding the oldest, we want to make a new line then
+            # move the list of the oldest one forward
             global_rev_list.append(sorted(prev + new, key=lambda x: x.prj.name))
             rli = rev_lists.index(new[0])
             if rev_lists[rli].next_rev == None:
@@ -46,8 +46,8 @@ def build_history(projects):
                 rev_lists[rli] = rev_lists[rli].next_rev
             return
         else:
-            # Otherwise, we want to recurse to finding the newest objects
-            o = newest(new)
+            # Otherwise, we want to recurse to finding the oldest objects
+            o = oldest(new)
             if not o in prev:
                 prev.append(o)
             del new[new.index(o)]
