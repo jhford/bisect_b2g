@@ -33,9 +33,12 @@ def build_history(projects):
         log.debug("new:  %s", new)
         """ This function creates a line.  It will use the values in prev, joined with the value of new"""
         if len(new) == 1:
-            # If we're done finding the oldest, we want to make a new line then
-            # move the list of the oldest one forward
-            global_rev_list.append(sorted(prev + new, key=lambda x: x.prj.name))
+            # Without this check, we end up repeating the last revision line
+            # twice
+            if len(rev_lists) > 1:
+                # If we're done finding the oldest, we want to make a new line then
+                # move the list of the oldest one forward
+                global_rev_list.append(sorted(prev + new, key=lambda x: x.prj.name))
             rli = rev_lists.index(new[0])
             if rev_lists[rli].next_rev == None:
                 log.debug("Found the last revision for %s", rev_lists[rli].prj.name)
@@ -64,8 +67,3 @@ def build_history(projects):
 
 def validate_history(history):
     pass
-
-
-
-
-
