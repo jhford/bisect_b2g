@@ -13,11 +13,13 @@ html_template = """<!DOCTYPE html><%! import isodate %>
 <title>Bisection results for ${", ".join([x.name.title() for x in projects])}</title>
 <script type="text/javascript">
 
-    function setup_filters() {
+    function setup_page() {
         var checkboxes = document.querySelectorAll('input[type="checkbox"].filter');
         for (var i = 0; i < checkboxes.length; i++) {
             show_hide_row(checkboxes[i].getAttribute('value'), checkboxes[i].checked);
         }
+        var tags_chk = document.querySelector("input#tags");
+        show_tags(tags_chk.checked);
 
     }
 
@@ -31,6 +33,15 @@ html_template = """<!DOCTYPE html><%! import isodate %>
         for (var i = 0; i < rows.length; i++) {
             rows[i].style.display = display;
         }
+    }
+
+    function show_tags(chkbox) {
+        var cells = document.querySelectorAll("td.commitish");
+        attr_to_set = chkbox.checked ? 'tag' : 'hash';
+        for (var i = 0; i < cells.length; i++) {
+            cells[i].innerHTML = cells[i].getAttribute(attr_to_set)
+        }
+        
     }
 
 </script>
@@ -68,12 +79,13 @@ html_template = """<!DOCTYPE html><%! import isodate %>
     }
 </style>
 </head>
-<body onload="setup_filters()">
+<body onload="setup_page()">
 <h1>Bisection results for ${", ".join([x.name.title() for x in projects])}</h1>
 % for cls in ('found', 'pass', 'fail', 'untested'):
 <input value="${cls}" type="checkbox" ${'checked="checked"' if cls != 'untested' else ""}
     onclick="show_hide_row(this.value, this.checked)" class="filter">${cls.title()}</input>
 % endfor
+<input value="tags" type="checkbox" onclick="show_tags(this)" id="tags" class="option">Show Tags</input>
 <table>
     <thead>
     <tr>
@@ -133,7 +145,7 @@ html_template = """<!DOCTYPE html><%! import isodate %>
     <tr class="${classes} ${"even" if loop.even else "odd"}">
         <td>${line_num}</td>
         % for rev in sorted(line, key=lambda x: x.prj.name):
-        <td>${rev.hash}</td>
+        <td class="commitish" hash="${rev.hash}" tag="${rev.tag()}">${rev.hash}</td>
         <td>${rev.date.isoformat()}</td>
         % endfor
     </tr>

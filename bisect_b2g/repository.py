@@ -36,6 +36,9 @@ class Repository(object):
     def set_rev(self, rev):
         assert 0
 
+    def resolve_tag(self, rev=None):
+        assert 0
+
     def validate_rev(self, rev):
         assert 0
 
@@ -74,6 +77,21 @@ class GitRepository(Repository):
         run_cmd(["git", "reset", "--hard", "HEAD"], workdir=self.local_path)
         run_cmd(["git", "checkout", rev], workdir=self.local_path)
         log.debug("Set %s to %s", self.local_path, rev)
+
+    def resolve_tag(self, rev=None):
+        if not rev:
+            _rev = self.get_rev()
+        else:
+            _rev = rev
+        tag_rc = run_cmd(["git", "describe", "--tags", "--exact-match", _rev],
+                       workdir=self.local_path,
+                       rc_only=True)
+        if tag_rc != 0:
+            return _rev
+        else:
+            return run_cmd(["git", "describe", "--tags", "--exact-match", _rev],
+                       workdir=self.local_path).strip()
+
 
     def validate_rev(self, rev):
         pass
@@ -130,6 +148,9 @@ class HgRepository(Repository):
 
     def validate_rev(self, rev):
         assert 0
+
+    def resolve_tag(self, rev=None):
+        assert 0, "unimplemented"
 
     def rev_list(self, start, end):
         # HG is a pain in the butt.  For good..bad,
@@ -191,6 +212,9 @@ class Project(object):
     def set_rev(self, rev):
         return self.repository.set_rev(rev)
 
+    def resolve_tag(self, rev=None):
+        return self.repository.resolve_tag(rev)
+
     def __str__(self):
         return "Name: %(name)s, Url: %(url)s, Good: %(good)s, Bad: %(bad)s, VCS: %(vcs)s" % self.__dict__
     __repr__ = __str__
@@ -204,6 +228,9 @@ class Rev(object):
         self.prj = prj
         self.date = date
         self.next_rev = next_rev
+
+    def tag(self):
+        return self.prj.resolve_tag(self.hash)
 
     def __str__(self):
         return "%s@%s" % (self.prj.name, self.hash)
