@@ -12,7 +12,7 @@ setup(
 
     # metadata for upload to PyPI
     author = "John Ford",
-    author_email = "john@johnford.info",
+    author_email = "john@johnford.org",
     description = "This program is used to bisect multiple repositories",
     license = "MPL2",
     keywords = "b2g gaia bisect",
