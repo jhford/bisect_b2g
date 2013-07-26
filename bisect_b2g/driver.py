@@ -140,6 +140,8 @@ def main():
                       follow both sides of a merge or only the mainline.\
                       This equates to --first-parent in git log",
                       dest="follow_merges", action="store_false")
+    parser.add_option("-o", "--output", help="File to write HTML output to",
+                      dest="output_html", default="bisect.html")
     parser.add_option("-i", "--interactive", help="Interactively determine if the changeset is good",
                       dest="interactive", action="store_true")
     parser.add_option("-v", "--verbose", help="Logfile verbosity", action="store_true", dest="verbose")
@@ -197,8 +199,7 @@ def main():
 
     combined_history = build_history(projects)
     bisection = Bisection(projects, combined_history, evaluator)
-    bisection.write('history.html')
-    bisection.write('history.xml', fmt='xml')
+    bisection.write(opts.output_html)
     log.info("Found:")
     map(log.info, ["  * %s@%s" % (rev.prj.name, rev.hash) for rev in bisection.found])
     log.info("This was revision pair %d of %d total revision pairs" % \

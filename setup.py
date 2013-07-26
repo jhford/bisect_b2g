@@ -8,7 +8,7 @@ setup(
             'bisect = bisect_b2g.driver:main'
         ]
     },
-    install_requires = ["isodate"],
+    install_requires = ["isodate", "mako"],
 
     # metadata for upload to PyPI
     author = "John Ford",
