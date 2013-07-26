@@ -62,7 +62,7 @@ def build_history(projects):
 
     log.debug("Global History:")
     map(log.debug, global_rev_list)
-    return global_rev_list
+    return list(reversed(global_rev_list))
 
 
 def validate_history(history):
