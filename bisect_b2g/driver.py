@@ -65,7 +65,7 @@ def parse_arg(arg):
         vcs = 'git'
         arg = arg[3:]
     else:
-        vcs = None # Careful, this gets used below because we want to
+        vcs = None  # Careful, this gets used below because we want to
         # share the URI parsing logic, but we do the vcs token up here
 
     # Let's tease out the URI and revision range
@@ -84,37 +84,42 @@ def parse_arg(arg):
         # Non-local URIs need to determine the name and local_path
         if lp_sep in uri:
             uri, x, local_path = uri.partition(lp_sep)
-            name = uri_to_name(uri)
+            name = uri_to_name(local_path)
         else:
+            # This is the case where the local_path doesn't exist locally,
+            # so we try to clone it into a sane location
             name = uri_to_name(uri)
             local_path = os.path.join(os.getcwd(), 'repos', name)
 
-    # If the arg didn't start with a vcs token, we need to guess whether it's Git or HG
-    if vcs == None:
-        git_urls = ('github.com', 'codeaurora.org', 'linaro.org', 'git.mozilla.org')
-        hg_urls = ('hg.mozilla.org')
-        # Git can give itself away at times.  Yes, someone could have an hg repo that
-        # ends with .git.  Wanna fight about it?
+    # If the arg didn't start with a vcs token, we need to guess Git or Hg
+    if vcs is None:
+        git_urls = ('github.com', 'codeaurora.org', 'linaro.org',
+                    'git.mozilla.org')
+        hg_urls = ('hg.mozilla.org',)
+        remote_uris = [('git', y) for y in git_urls]
+        remote_uris.extend([('hg', y) for y in hg_urls])
+        # Git can give itself away at times.  Yes, someone could have an hg
+        # repo that ends with .git.  Wanna fight about it?
         if uri.startswith("git://") or uri.endswith(".git"):
+            for y in hg_urls:
+                if y in uri:
+                    raise InvalidArg("Just because this URI starts with " +
+                                     "git:// or ends with .git doesn't make " +
+                                     "it a git repo.")
             vcs = 'git'
         else:
-            for hg_url in hg_urls:
-                if hg_url in uri:
-                    if vcs:
-                        raise Exception("Multiple clues to VCS system")
-                else:
-                    vcs = 'hg'
-            for git_url in git_urls:
-                if git_url in uri:
-                    if vcs:
-                        raise Exception("Multiple clues to VCS system")
-                else:
-                    vcs = 'git'
-
+            for expected_vcs, remote_uri in remote_uris:
+                if remote_uri in uri:
+                    if vcs and vcs != expected_vcs:
+                        raise InvalidArg("This URI seems to think that it's a %s " % vcs +
+                                         "but we just found a clue that it's a %s " % expected_vcs +
+                                         "because it contains %s" % remote_uri)
+                    else:
+                        vcs = expected_vcs
     if vcs:
         arg_data['vcs'] = vcs
     else:
-        raise Exception("Could not determine VCS system")
+        raise InvalidArg("Could not determine VCS system")
 
     arg_data['uri'] = uri
     arg_data['name'] = local_path_to_name(local_path)
