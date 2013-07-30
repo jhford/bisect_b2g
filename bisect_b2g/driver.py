@@ -14,12 +14,11 @@ from bisect_b2g.evaluator import script_evaluator, interactive_evaluator
 
 class InvalidArg(Exception): pass
 
-
 def local_path_to_name(lp):
     head, tail = os.path.split(lp)
 
     if tail.endswith('.git'):
-        return tail[:4]
+        return tail[:-4]
     else:
         return tail
 
@@ -36,9 +35,9 @@ def uri_to_name(uri):
     name = path_full.split('/')[-1]
 
     if name.endswith('.git'):
-        name = name[:4]
+        name = name[:-4]
 
-    return name
+    return str(name)
 
 
 def parse_arg(arg):
