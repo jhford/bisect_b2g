@@ -57,7 +57,7 @@ def interactive_evaluator(history):
         rv = False
     elif rc == 0:
         log.warning("Received an exit command from interactive console, exiting bisection completely")
-        sys.exit(1)
+        exit(1)
     else:
         raise Exception("An unexpected exit code '%d' occured in the interactive prompt" % rc)
     log.debug("Interactive evaluator returned %d", rc)
