@@ -117,7 +117,7 @@ html_template = """<!DOCTYPE html><%! import isodate %>
 
                 time_delta = newest - oldest
             %>
-        <td>${len(commits)} unique ${project.name.title()} commits</td>
+        <td>${len(commits)} ${project.name.title()} commits</td>
         <td>${time_delta}</td>
         % endfor
     </tr>
@@ -167,7 +167,7 @@ class Bisection(object):
         self.history = history
         self.evaluator = evaluator
         self.max_recursions = \
-            round(math.log(len(history) + len(history) % 2, 2))
+            round(math.log(len(history), 2))
         self.pass_i = []
         self.fail_i = []
         self.order = []
