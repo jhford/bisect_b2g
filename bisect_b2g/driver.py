@@ -126,8 +126,28 @@ def parse_arg(arg):
 def make_arg(arg_data):
     """ I am the reverse of parse_arg.  I am here in case someone else wants to
     generate these strings"""
-    assert arg_data['uri'] == arg_data['local_path'], "unimplemented"
-    return "%(local_path)s@%(good)s..%(bad)s" % arg_data
+
+    if uri_to_name(arg_data['local_path']) != arg_data['name']:
+        raise InvalidArg(
+            "the name in the arg_data dictionary is invalid: '%s' != '%s'" % \
+            (arg_data['name'], uri_to_name(arg_data['local_path'])))
+
+
+    if arg_data.get('vcs') == 'git':
+        arg = 'GIT'
+    elif arg_data.get('vcs') == 'hg':
+        arg = 'HG'
+    else:
+        raise InvalidArg("This arg_data is missing a valid VCS: %s" % arg_data)
+
+    if arg_data['local_path'] != arg_data['uri']:
+        arg += "%(uri)s->%(local_path)s" % arg_data
+    else:
+        arg += "%(local_path)s" % arg_data
+
+    arg += "@%(good)s..%(bad)s" % arg_data
+
+    return arg
 
 
 def main():
