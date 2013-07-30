@@ -111,8 +111,15 @@ class GitRepository(Repository):
 
         if not self.follow_merges:
             command.append("--first-parent")
+        parents_of_start = run_cmd(['git', 'log', '-n1', '--pretty=%P', start], workdir=self.local_path).strip()
 
-        command.extend(["--date-order", "%s..%s" % (start, end),
+        if parents_of_start == '':
+            log.debug("Found initial commit")
+            commit_range = end
+        else:
+            commit_range = "%s^..%s" % (start, end)
+
+        command.extend(["--date-order", commit_range,
                         '--pretty=%%H%s%%ci' % sep])
         raw_output = run_cmd(command, self.local_path)
         intermediate_output = [x.strip() for x in raw_output.split('\n')]
@@ -153,6 +160,7 @@ class HgRepository(Repository):
         assert 0, "unimplemented"
 
     def rev_list(self, start, end):
+        assert 0, "There is a bug in this HG code.  I need to verify if I need good or parent of good for this!"
         # HG is a pain in the butt.  For good..bad,
         # we need to hg up -r good ; hg log -r bad.
         log.debug("Fetching HG revision list for %s..%s", start, end)
