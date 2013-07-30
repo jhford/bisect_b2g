@@ -139,6 +139,3 @@ class ParseArgTests(ArgTests):
         self.assertRaises(driver.InvalidArg,
                           driver.parse_arg,
                           (bad_uri))
-
-
-unittest.main()
