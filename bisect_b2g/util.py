@@ -9,6 +9,20 @@ log = logging.getLogger(__name__)
 devnull = open(os.devnull, 'w+')
 
 
+def generate_env(env=None, delete_env=None):
+    full_env = dict(os.environ)
+
+    if env:
+        full_env.update(env)
+
+    if delete_env:
+        for d in delete_env:
+            if d in full_env:
+                del full_env[d]
+    return full_env
+
+
+# XXX: This function is garbage!  It should have a complete rewrite
 def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
             ignore_err=True, env=None, delete_env=False, rc_only=False,
             **kwargs):
@@ -21,15 +35,7 @@ def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
     delete_env: delete these environment keys
     rc_only: run the command, ignore output"""
 
-    full_env = dict(os.environ)
-
-    if env:
-        full_env.update(env)
-
-    if delete_env:
-        for d in delete_env:
-            if full_env in d:
-                del full_env[d]
+    full_env = generate_env(env, delete_env)
 
     if inc_err and ignore_err:
         raise Exception("You are trying to include *and* ignore stderr, wtf?")
