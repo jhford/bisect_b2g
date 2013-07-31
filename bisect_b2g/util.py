@@ -37,20 +37,17 @@ def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
 
     full_env = generate_env(env, delete_env)
 
+    kwargs = kwargs.copy()
     if inc_err and ignore_err:
         raise Exception("You are trying to include *and* ignore stderr, wtf?")
-    elif inc_err:
-        kwargs = kwargs.copy()
-        kwargs['stderr'] = subprocess.STDOUT
-    elif ignore_err:
-        kwargs = kwargs.copy()
+    elif ignore_err or rc_only:
         # This might be a bad idea, research this!
-        kwargs['stderr'] = subprocess.PIPE
+        kwargs['stderr'] = devnull
+    elif inc_err:
+        kwargs['stderr'] = subprocess.STDOUT
 
     if rc_only:
         func = subprocess.call
-        # This probably leaves a bunch of wasted open file handles.  Meh
-        kwargs['stderr'] = kwargs['stdout'] = devnull
     elif read_out:
         func = subprocess.check_output
     else:
@@ -58,4 +55,5 @@ def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
 
     log.debug("command=%s, workdir=%s, env=%s, kwargs=%s",
               command, workdir, env or {}, kwargs)
+
     return func(command, cwd=workdir, env=full_env, **kwargs)
