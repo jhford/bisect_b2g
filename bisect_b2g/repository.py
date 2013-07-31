@@ -170,7 +170,8 @@ class HgRepository(Repository):
     def rev_list(self, start, end):
         log.debug("Fetching HG revision list for %s..%s", start, end)
         raw_xml = self.repo.hg_log(
-            "%s..%s" % (start, end), **{'--style': 'xml'})
+            "p1(first(children(%s))..first(children(%s)))" % (
+                start, end), **{'--style': 'xml'})
 
         root = ElementTree.XML(raw_xml.encode('utf-8'))
         output = []
