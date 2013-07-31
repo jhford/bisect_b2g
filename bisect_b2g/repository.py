@@ -1,8 +1,10 @@
 import os
 import logging
 from xml.etree import ElementTree
+import datetime
 
 import isodate
+import git
 
 from bisect_b2g.util import run_cmd
 
@@ -50,82 +52,66 @@ class GitRepository(Repository):
         Repository.__init__(self, *args, **kwargs)
         if os.path.exists(self.local_path) and os.path.isdir(self.local_path):
             log.debug("%s already exists, updating", self.name)
+            self.repo = git.Repo(self.local_path)
         else:
             log.debug("%s does not exist, cloning", self.name)
             self.clone()
 
     def clone(self):
-        local_path_base = os.path.split(self.local_path)[0]
-
-        if not os.path.exists(local_path_base) and local_path_base != '':
-            os.makedirs(local_path_base)
-
-        run_cmd(["git", "clone", self.url, self.local_path])
+        self.repo = git.Repo.clone_from(self.url, self.local_path)
 
     def get_rev(self, rev=None):
-        return run_cmd(["git", "rev-parse", rev if rev else 'HEAD'],
-                       workdir=self.local_path)[1].strip()
+        return self.repo.commit(rev if rev else 'HEAD').hexsha
 
     def set_rev(self, rev):
         # This will create a detached head
-        run_cmd(["git", "reset", "--hard", "HEAD"], workdir=self.local_path)
-        run_cmd(["git", "checkout", rev], workdir=self.local_path)
+        self.repo.head.reset(index=True, working_tree=True)
+        self.repo.commit(rev)
         log.debug("Set %s to %s", self.local_path, rev)
 
     def resolve_tag(self, rev=None):
-        if not rev:
-            _rev = self.get_rev()
-        else:
-            _rev = rev
-
-        code, output = run_cmd(
-            ["git", "describe", "--tags", "--exact-match", _rev],
-            workdir=self.local_path,
-            raise_if_not=None
-        )
-        if code != 0:
-            return _rev
-        else:
-            return output.strip()
+        git = self.repo.git
+        try:
+            return git.describe(
+                rev, tags=True, exact_match=True)
+        except git.exc.GitCommandError:
+            return rev
 
     def validate_rev(self, rev):
         pass
 
     def rev_list(self, start, end):
 
-        def fix_git_timestamp(timestamp):
-            """Yay git for generating non-ISO8601 datetime stamps.
-            Git generates, e.g. 2013-01-29 16:06:52 -0800 but ISO8601
-            would be 2013-01-29T16:06:52-0800"""
-            as_list = list(timestamp)
-            as_list[10] = 'T'
-            del as_list[19]
-            return "".join(as_list)
-
-        sep = " --- "
-        command = ["git", "log"]
-
-        if not self.follow_merges:
-            command.append("--first-parent")
-        parents_of_start = run_cmd(['git', 'log', '-n1', '--pretty=%P', start],
-                                   workdir=self.local_path)[1].strip()
-
-        if parents_of_start == '':
-            log.debug("Found initial commit")
-            commit_range = end
+        start_parents = self.repo.commit(start).parents
+        if len(start_parents) == 0:
+            rev_spec = end
         else:
-            commit_range = "%s^..%s" % (start, end)
+            rev_spec = '%s^..%s' % (start, end)
 
-        command.extend(["--date-order", commit_range,
-                        '--pretty=%%H%s%%ci' % sep])
-        raw_output = run_cmd(command, self.local_path)[1]
-        intermediate_output = [x.strip() for x in raw_output.split('\n')]
+        commits = self.repo.iter_commits(rev=rev_spec)
+
         output = []
 
-        for line in [x for x in intermediate_output if x != '']:
-            h, s, d = line.partition(sep)
-            output.append((h, isodate.parse_datetime(fix_git_timestamp(d))))
+        class FixedSecondsOffset(datetime.tzinfo):
+            def __init__(self, offset):
+                self.offset = offset
 
+            def utcoffset(self, dt):
+                return datetime.timedelta(seconds=-self.offset)
+
+            def tzname(self, dt):
+                return ''
+
+            def dst(self, dt):
+                return datetime.timedelta(0)
+
+        for commit in commits:
+            output.append((
+                commit.hexsha,
+                datetime.datetime.fromtimestamp(
+                    commit.committed_date,
+                    FixedSecondsOffset(commit.committer_tz_offset))
+            ))
         return output
 
 
