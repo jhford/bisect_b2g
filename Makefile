@@ -1,15 +1,23 @@
-check:
+check: pep8 tests
+	@echo ====================
+	@echo \|\| It all passed! \|\|
+	@echo ====================
+
+pep8:
 	@echo ================================================
 	@echo \|\| Running pep8 checks against code and tests \|\|
 	@echo ================================================
 	pep8 -v bisect_b2g tests
+
+tests:
 	@echo ========================
 	@echo \|\| Running unit tests \|\|
 	@echo ========================
 	python -m unittest discover -v $(PWD)/tests
-	@echo ====================
-	@echo \|\| It all passed! \|\|
-	@echo ====================
+
+.PHONY: check pep8 tests
+
+
 
 # So that there is a standard name and url for releases
 remotes:
