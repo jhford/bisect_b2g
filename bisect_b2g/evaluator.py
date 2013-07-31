@@ -46,7 +46,9 @@ def interactive_evaluator(history):
     os.write(tmpfd, rcfile)
     os.close(tmpfd)
 
-    rc = subprocess.call([os.environ['SHELL'], "--rcfile", tmpn, "--noprofile"], env=env)
+    rc = subprocess.call(
+        [os.environ['SHELL'], "--rcfile", tmpn, "--noprofile"],
+        env=env)
 
     if os.path.exists(tmpn):
         os.unlink(tmpn)
@@ -56,10 +58,11 @@ def interactive_evaluator(history):
     elif rc == 96:
         rv = False
     elif rc == 0:
-        log.warning("Received an exit command from interactive console, exiting bisection completely")
+        log.warning("Received an exit command from interactive " +
+                    " console, exiting bisection completely")
         exit(1)
     else:
-        raise Exception("An unexpected exit code '%d' occured in the interactive prompt" % rc)
+        raise Exception("An unexpected exit code '%d' occured in" +
+                        "the interactive prompt" % rc)
     log.debug("Interactive evaluator returned %d", rc)
     return rv
-

@@ -10,147 +10,153 @@ html_template = """<!DOCTYPE html><%! import isodate %>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Bisection results for ${", ".join([x.name.title() for x in projects])}</title>
+<title>
+Bisection results for ${", ".join([x.name.title() for x in projects])}
+</title>
 <script type="text/javascript">
 
-    function setup_page() {
-        var checkboxes = document.querySelectorAll('input[type="checkbox"].filter');
-        for (var i = 0; i < checkboxes.length; i++) {
-            show_hide_row(checkboxes[i].getAttribute('value'), checkboxes[i].checked);
-        }
-        var tags_chk = document.querySelector("input#tags");
-        show_tags(tags_chk.checked);
-
+function setup_page() {
+  var checkboxes = document.querySelectorAll('input[type="checkbox"].filter');
+    for (var i = 0; i < checkboxes.length; i++) {
+      show_hide_row(checkboxes[i].getAttribute('value'),
+                    checkboxes[i].checked);
     }
+    var tags_chk = document.querySelector("input#tags");
+    show_tags(tags_chk.checked);
 
-    function show_hide_row(clsname, show) {
-        var rows = document.querySelectorAll("tr." + clsname)
-        if (show) {
-            display = ''
-        } else {
-            display = 'none'
-        }
-        for (var i = 0; i < rows.length; i++) {
-            rows[i].style.display = display;
-        }
-    }
+}
 
-    function show_tags(chkbox) {
-        var cells = document.querySelectorAll("td.commitish");
-        attr_to_set = chkbox.checked ? 'tag' : 'hash';
-        for (var i = 0; i < cells.length; i++) {
-            cells[i].innerHTML = cells[i].getAttribute(attr_to_set)
-        }
-        
-    }
+function show_hide_row(clsname, show) {
+  var rows = document.querySelectorAll("tr." + clsname)
+  if (show) {
+    display = ''
+  } else {
+    display = 'none'
+  }
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].style.display = display;
+  }
+}
+
+function show_tags(chkbox) {
+  var cells = document.querySelectorAll("td.commitish");
+  attr_to_set = chkbox.checked ? 'tag' : 'hash';
+  for (var i = 0; i < cells.length; i++) {
+    cells[i].innerHTML = cells[i].getAttribute(attr_to_set)
+  }
+}
 
 </script>
 <style>
-    table {
-        border-collapse: collapse ;
-        border: solid 1px black ;
-    }
-    thead {
-        border-bottom: solid 3px red ;
-    }
-    tfoot {
-        border-top: solid 3px red ;
-        font-weight: bold ;
-    }
-    th,td {
-        border: solid 1px black ;
-    }
-    tr.pass {
-        background: #90EE90 ;
-    }
-    tr.fail {
-        background: #FA8072 ;
-    }
-    tr.found {
-        background: #89CFF0 ;
-    }
-    tr.untested.even {
-        background: #999 ;
-        color: #666 ;
-    }
-    tr.untested.odd {
-        background: #666 ;
-        color: #999 ;
-    }
+  table {
+    border-collapse: collapse ;
+    border: solid 1px black ;
+  }
+  thead {
+    border-bottom: solid 3px red ;
+  }
+  tfoot {
+    border-top: solid 3px red ;
+    font-weight: bold ;
+  }
+  th,td {
+    border: solid 1px black ;
+  }
+  tr.pass {
+    background: #90EE90 ;
+  }
+  tr.fail {
+    background: #FA8072 ;
+  }
+  tr.found {
+    background: #89CFF0 ;
+  }
+  tr.untested.even {
+    background: #999 ;
+    color: #666 ;
+  }
+  tr.untested.odd {
+    background: #666 ;
+    color: #999 ;
+  }
 </style>
 </head>
 <body onload="setup_page()">
 <h1>Bisection results for ${", ".join([x.name.title() for x in projects])}</h1>
 % for cls in ('found', 'pass', 'fail', 'untested'):
-<input value="${cls}" type="checkbox" ${'checked="checked"' if cls != 'untested' else ""}
-    onclick="show_hide_row(this.value, this.checked)" class="filter">${cls.title()}</input>
+<% checked = 'checked="checked"' if cls != 'untested' else '' %>
+<input value="${cls}" type="checkbox" ${checked}
+    onclick="show_hide_row(this.value, this.checked)"
+    class="filter">${cls.title()}</input>
 % endfor
-<input value="tags" type="checkbox" onclick="show_tags(this)" id="tags" class="option">Show Tags</input>
+<input value="tags" type="checkbox" onclick="show_tags(this)"
+    id="tags" class="option">Show Tags</input>
 <table>
-    <thead>
-    <tr>
-        <th>Count</th>
-        % for project in sorted(projects, key=lambda x: x.name):
-        % for info in ('Hash', 'Date'):
-        <th>${project.name.title()} ${info}</th>
-        % endfor
-        % endfor
-    </tr>
-    </thead>
-    <tfoot>
-    <tr>
-        <td>${len(history)}</td>
-        % for project in sorted(projects, key=lambda x: x.name):
-            <%
-                commits = []
-                oldest = None
-                newest = None
-                for line in history:
-                    for rev in line:
-                        if rev.prj == project:
-                            if project and not rev.hash in commits:
-                                commits.append(rev.hash)
-                            if newest is None or rev.date > newest:
-                                newest = rev.date
-                            if oldest is None or rev.date < oldest:
-                                oldest = rev.date
-
-                time_delta = newest - oldest
-            %>
-        <td>${len(commits)} ${project.name.title()} commits</td>
-        <td>${time_delta}</td>
-        % endfor
-    </tr>
-    </tfoot>
-    <tbody>
-    % for line in history:
-    <%
-        classes = []
-        if loop.index == found_i:
-            classes.append('found')
-        if loop.index in pass_i:
-            classes.append('pass')
-        elif loop.index in fail_i:
-            classes.append('fail')
-        else:
-            classes.append('untested')
-        classes = " ".join(classes)
-
-        if loop.index in order:
-            line_num = "%d (%d)" % (loop.index+1, order.index(loop.index)+1)
-        else:
-            line_num = str(loop.index + 1)
-
-    %>
-    <tr class="${classes} ${"even" if loop.even else "odd"}">
-        <td>${line_num}</td>
-        % for rev in sorted(line, key=lambda x: x.prj.name):
-        <td class="commitish" hash="${rev.hash}" tag="${rev.tag()}">${rev.hash}</td>
-        <td>${rev.date.isoformat()}</td>
-        % endfor
-    </tr>
+  <thead>
+  <tr>
+    <th>Count</th>
+    % for project in sorted(projects, key=lambda x: x.name):
+    % for info in ('Hash', 'Date'):
+    <th>${project.name.title()} ${info}</th>
     % endfor
-    </tbody>
+    % endfor
+  </tr>
+  </thead>
+  <tfoot>
+  <tr>
+    <td>${len(history)}</td>
+    % for project in sorted(projects, key=lambda x: x.name):
+      <%
+        commits = []
+        oldest = None
+        newest = None
+        for line in history:
+          for rev in line:
+            if rev.prj == project:
+              if project and not rev.hash in commits:
+                commits.append(rev.hash)
+              if newest is None or rev.date > newest:
+                newest = rev.date
+              if oldest is None or rev.date < oldest:
+                oldest = rev.date
+
+        time_delta = newest - oldest
+      %>
+    <td>${len(commits)} ${project.name.title()} commits</td>
+    <td>${time_delta}</td>
+    % endfor
+  </tr>
+  </tfoot>
+  <tbody>
+  % for line in history:
+  <%
+    classes = []
+    if loop.index == found_i:
+      classes.append('found')
+    if loop.index in pass_i:
+      classes.append('pass')
+    elif loop.index in fail_i:
+      classes.append('fail')
+    else:
+      classes.append('untested')
+    classes = " ".join(classes)
+
+    if loop.index in order:
+      line_num = "%d (%d)" % (loop.index+1, order.index(loop.index)+1)
+    else:
+      line_num = str(loop.index + 1)
+
+  %>
+  <tr class="${classes} ${"even" if loop.even else "odd"}">
+    <td>${line_num}</td>
+    % for rev in sorted(line, key=lambda x: x.prj.name):
+    <td class="commitish" hash="${rev.hash}"
+      tag="${rev.tag()}">${rev.hash}</td>
+    <td>${rev.date.isoformat()}</td>
+    % endfor
+  </tr>
+  % endfor
+  </tbody>
 </table>
 </body>
 </html>

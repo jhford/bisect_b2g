@@ -1,10 +1,4 @@
-import sys
-import os
 import logging
-import math
-
-
-from bisect_b2g.repository import Project, Rev
 
 
 log = logging.getLogger(__name__)
@@ -18,7 +12,7 @@ def build_history(projects):
     def oldest(l):
         """Find the oldest head of a linked list and return it"""
         if len(l) == 1:
-            log.debug("There was only one item to evaluate, returning %s", l[0])
+            log.debug("Only have %s to evaluate, it's oldest", l[0])
             return l[0]
         else:
             oldest = l[0]
@@ -29,23 +23,28 @@ def build_history(projects):
             return oldest
 
     def create_line(prev, new):
+        """ This function creates a line.  It will use the values in
+        prev, joined with the value of new"""
         log.debug("prev: %s", prev)
         log.debug("new:  %s", new)
-        """ This function creates a line.  It will use the values in prev, joined with the value of new"""
         if len(new) == 1:
             # Without this check, we end up repeating the last revision line
             # twice
             if len(rev_lists) > 1:
-                # If we're done finding the oldest, we want to make a new line then
-                # move the list of the oldest one forward
-                global_rev_list.append(sorted(prev + new, key=lambda x: x.prj.name))
+                # If we're done finding the oldest, we want to make a new
+                # line then move the list of the oldest one forward
+                global_rev_list.append(
+                    sorted(prev + new, key=lambda x: x.prj.name)
+                )
             rli = rev_lists.index(new[0])
-            if rev_lists[rli].next_rev == None:
-                log.debug("Found the last revision for %s", rev_lists[rli].prj.name)
+            if rev_lists[rli].next_rev is None:
+                log.debug("Found the last revision for %s",
+                          rev_lists[rli].prj.name)
                 last_revs.append(rev_lists[rli])
                 del rev_lists[rli]
             else:
-                log.debug("Moving pointer for %s forward", rev_lists[rli].prj.name)
+                log.debug("Moving pointer for %s forward",
+                          rev_lists[rli].prj.name)
                 rev_lists[rli] = rev_lists[rli].next_rev
             return
         else:
@@ -54,7 +53,8 @@ def build_history(projects):
             if not o in prev:
                 prev.append(o)
             del new[new.index(o)]
-            log.debug("Building a line, %.2f%% complete ", float(len(prev)) / ( float(len(prev) + len(new))) * 100)
+            log.debug("Building a line, %.2f%% complete ",
+                      float(len(prev)) / (float(len(prev) + len(new))) * 100)
             create_line(prev, new)
 
     while len(rev_lists) > 0:

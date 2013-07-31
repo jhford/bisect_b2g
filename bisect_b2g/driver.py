@@ -12,7 +12,9 @@ from bisect_b2g.history import build_history
 from bisect_b2g.evaluator import script_evaluator, interactive_evaluator
 
 
-class InvalidArg(Exception): pass
+class InvalidArg(Exception):
+    pass
+
 
 def local_path_to_name(lp):
     head, tail = os.path.split(lp)
@@ -43,15 +45,18 @@ def uri_to_name(uri):
 def parse_arg(arg):
     """
     Parse an argument into a dictionary with the keys:
-        'uri' - This is a URI to point to a repository.  If it is a local file, no network cloning is done
+        'uri' - This is a URI to point to a repository.  If it is a local file,
+                no network cloning is done
         'good' - Good changeset
         'bad' - Bad changeset
-        'local_path' - This is the path on the local disk relative to os.getcwd() that contains the repository
+        'local_path' - This is the path on the local disk relative to
+                       os.getcwd() that contains the repository
 
     The arguments that are parsed by this function are in the format:
         [GIT|HG][URI->]LOCAL_PATH@GOOD..BAD
 
-    The seperators are '->', '..' and '@', quotes exclusive.  The URI and '->' are optional
+    The seperators are '->', '..' and '@', quotes exclusive.  The URI and '->'
+    are optional
     """
     arg_data = {}
     uri_sep = '@'
@@ -111,9 +116,10 @@ def parse_arg(arg):
             for expected_vcs, remote_uri in remote_uris:
                 if remote_uri in uri:
                     if vcs and vcs != expected_vcs:
-                        raise InvalidArg("This URI seems to think that it's a %s " % vcs +
-                                         "but we just found a clue that it's a %s " % expected_vcs +
-                                         "because it contains %s" % remote_uri)
+                        raise InvalidArg(
+                            "This URI seems to think that it's a " + vcs +
+                            "but we just found a clue that it's a " +
+                            expected_vcs + "because it contains " + remote_uri)
                     else:
                         vcs = expected_vcs
     if vcs:
@@ -134,9 +140,9 @@ def make_arg(arg_data):
 
     if uri_to_name(arg_data['local_path']) != arg_data['name']:
         raise InvalidArg(
-            "the name in the arg_data dictionary is invalid: '%s' != '%s'" % \
-            (arg_data['name'], uri_to_name(arg_data['local_path'])))
-
+            "the name in the arg_data dictionary is invalid: " +
+            "'%s' != '%s'" % (arg_data['name'],
+                              uri_to_name(arg_data['local_path'])))
 
     if arg_data.get('vcs') == 'git':
         arg = 'GIT'
@@ -157,18 +163,20 @@ def make_arg(arg_data):
 
 def main():
     parser = optparse.OptionParser("%prog - I bisect repositories!")
-    parser.add_option("--script", "-x", help="Script to run.  Return code 0 \
-                      means the current changesets are good, Return code 1 means \
-                      that it's bad", dest="script")
+    parser.add_option("--script", "-x", help="Script to run.  Return code 0 " +
+                      "means the current changesets are good, Return code 1 " +
+                      "means that it's bad", dest="script")
     parser.add_option("--follow-merges", help="Should git/hg log functions \
                       follow both sides of a merge or only the mainline.\
                       This equates to --first-parent in git log",
                       dest="follow_merges", action="store_false")
     parser.add_option("-o", "--output", help="File to write HTML output to",
                       dest="output_html", default="bisect.html")
-    parser.add_option("-i", "--interactive", help="Interactively determine if the changeset is good",
+    parser.add_option("-i", "--interactive", help="Interactively determine " +
+                      "if the changeset is good",
                       dest="interactive", action="store_true")
-    parser.add_option("-v", "--verbose", help="Logfile verbosity", action="store_true", dest="verbose")
+    parser.add_option("-v", "--verbose", help="Logfile verbosity",
+                      action="store_true", dest="verbose")
     opts, args = parser.parse_args()
 
     # Set up logging
@@ -178,9 +186,11 @@ def main():
     lh.setLevel(logging.INFO)
     bisect_b2g_log.addHandler(lh)
     file_handler = logging.FileHandler('bisection.log')
-    file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(filename)s/%(funcName)s:%(lineno)d - %(message)s"))
+    fmt = "%(asctime)s - %(levelname)s - %(filename)s/" + \
+          "%(funcName)s:%(lineno)d - %(message)s"
+    file_handler.setFormatter(logging.Formatter(fmt))
     bisect_b2g_log.addHandler(file_handler)
-    
+
     if opts.verbose:
         file_handler.setLevel(logging.DEBUG)
     else:
@@ -212,22 +222,25 @@ def main():
             parser.exit(2)
 
         projects.append(Project(
-            name = repo_data['name'],
-            url = repo_data['uri'],
-            local_path = repo_data['local_path'],
-            good = repo_data['good'],
-            bad = repo_data['bad'],
-            vcs = repo_data['vcs'],
-            follow_merges = opts.follow_merges,
+            name=repo_data['name'],
+            url=repo_data['uri'],
+            local_path=repo_data['local_path'],
+            good=repo_data['good'],
+            bad=repo_data['bad'],
+            vcs=repo_data['vcs'],
+            follow_merges=opts.follow_merges,
         ))
 
     combined_history = build_history(projects)
     bisection = Bisection(projects, combined_history, evaluator)
     bisection.write(opts.output_html)
     log.info("Found:")
-    map(log.info, ["  * %s@%s" % (rev.prj.name, rev.hash) for rev in bisection.found])
-    log.info("This was revision pair %d of %d total revision pairs" % \
-    (combined_history.index(bisection.found) + 1, len(combined_history)))
+    map(log.info, ["  * %s@%s" % (rev.prj.name, rev.hash)
+                   for rev in bisection.found])
+    log.info(
+        "This was revision pair %d of %d total revision pairs" %
+        (combined_history.index(bisection.found) + 1, len(combined_history))
+    )
 
 
 if __name__ == "__main__":

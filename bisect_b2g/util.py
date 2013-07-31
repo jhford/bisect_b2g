@@ -8,8 +8,10 @@ log = logging.getLogger(__name__)
 
 devnull = open(os.devnull, 'w+')
 
+
 def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
-            ignore_err=True, env=None, delete_env=False, rc_only=False, **kwargs):
+            ignore_err=True, env=None, delete_env=False, rc_only=False,
+            **kwargs):
     """ Wrap subprocess in a way that I like.
     command: string or list of the command to run
     workdir: directory to do the work in
@@ -26,7 +28,7 @@ def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
 
     if delete_env:
         for d in delete_env:
-            if full_env.has_key(d):
+            if full_env in d:
                 del full_env[d]
 
     if inc_err and ignore_err:
@@ -36,7 +38,8 @@ def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
         kwargs['stderr'] = subprocess.STDOUT
     elif ignore_err:
         kwargs = kwargs.copy()
-        kwargs['stderr'] = subprocess.PIPE # This might be a bad idea, research this!
+        # This might be a bad idea, research this!
+        kwargs['stderr'] = subprocess.PIPE
 
     if rc_only:
         func = subprocess.call
@@ -47,5 +50,6 @@ def run_cmd(command, workdir=os.getcwd(), read_out=True, inc_err=False,
     else:
         func = subprocess.check_call
 
-    log.debug("command=%s, workdir=%s, env=%s, kwargs=%s", command, workdir, env or {}, kwargs)
+    log.debug("command=%s, workdir=%s, env=%s, kwargs=%s",
+              command, workdir, env or {}, kwargs)
     return func(command, cwd=workdir, env=full_env, **kwargs)

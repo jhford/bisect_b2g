@@ -8,6 +8,7 @@ from bisect_b2g.util import run_cmd
 
 log = logging.getLogger(__name__)
 
+
 class Repository(object):
 
     def __init__(self, name, url, local_path, follow_merges=False):
@@ -16,12 +17,9 @@ class Repository(object):
         self.url = url
         self.local_path = local_path
         self.follow_merges = follow_merges
-        log.info("Setting up %s", name if name == local_path else "%s at %s" % (name, local_path))
+        log.info("Setting up %s->%s", name, local_path)
 
     def sanitize(self):
-        assert 0
-
-    def update(self):
         assert 0
 
     def clone(self):
@@ -52,7 +50,6 @@ class GitRepository(Repository):
         Repository.__init__(self, *args, **kwargs)
         if os.path.exists(self.local_path) and os.path.isdir(self.local_path):
             log.debug("%s already exists, updating", self.name)
-            self.update()
         else:
             log.debug("%s does not exist, cloning", self.name)
             self.clone()
@@ -65,12 +62,9 @@ class GitRepository(Repository):
 
         run_cmd(["git", "clone", self.url, self.local_path])
 
-    def update(self):
-        # Assuming here that all fetches go over the network
-        pass#run_cmd(["git", "fetch", "--all"], workdir=self.local_path)
-
     def get_rev(self):
-        return run_cmd(["git", "rev-parse", "HEAD"], workdir=self.local_path).strip()
+        return run_cmd(["git", "rev-parse", "HEAD"],
+                       workdir=self.local_path).strip()
 
     def set_rev(self, rev):
         # This will create a detached head
@@ -79,19 +73,22 @@ class GitRepository(Repository):
         log.debug("Set %s to %s", self.local_path, rev)
 
     def resolve_tag(self, rev=None):
+        # XXX: This is a little bit of a problem.  I run git describe
+        # twice because I don't currently have a way for run_cmd
+        # to return rc and output.
         if not rev:
             _rev = self.get_rev()
         else:
             _rev = rev
         tag_rc = run_cmd(["git", "describe", "--tags", "--exact-match", _rev],
-                       workdir=self.local_path,
-                       rc_only=True)
+                         workdir=self.local_path,
+                         rc_only=True)
         if tag_rc != 0:
             return _rev
         else:
-            return run_cmd(["git", "describe", "--tags", "--exact-match", _rev],
-                       workdir=self.local_path).strip()
-
+            return run_cmd(
+                ["git", "describe", "--tags", "--exact-match", _rev],
+                workdir=self.local_path).strip()
 
     def validate_rev(self, rev):
         pass
@@ -99,8 +96,9 @@ class GitRepository(Repository):
     def rev_list(self, start, end):
 
         def fix_git_timestamp(timestamp):
-            """Yay git for generating non-ISO8601 datetime stamps.  Git generates, e.g.
-            2013-01-29 16:06:52 -0800 but ISO8601 would be 2013-01-29T16:06:52-0800"""
+            """Yay git for generating non-ISO8601 datetime stamps.
+            Git generates, e.g. 2013-01-29 16:06:52 -0800 but ISO8601
+            would be 2013-01-29T16:06:52-0800"""
             as_list = list(timestamp)
             as_list[10] = 'T'
             del as_list[19]
@@ -111,7 +109,8 @@ class GitRepository(Repository):
 
         if not self.follow_merges:
             command.append("--first-parent")
-        parents_of_start = run_cmd(['git', 'log', '-n1', '--pretty=%P', start], workdir=self.local_path).strip()
+        parents_of_start = run_cmd(['git', 'log', '-n1', '--pretty=%P', start],
+                                   workdir=self.local_path).strip()
 
         if parents_of_start == '':
             log.debug("Found initial commit")
@@ -126,7 +125,7 @@ class GitRepository(Repository):
         output = []
 
         for line in [x for x in intermediate_output if x != '']:
-            h,s,d = line.partition(sep)
+            h, s, d = line.partition(sep)
             output.append((h, isodate.parse_datetime(fix_git_timestamp(d))))
 
         return output
@@ -137,7 +136,7 @@ class HgRepository(Repository):
     def __init__(self, *args, **kwargs):
         Repository.__init__(self, *args, **kwargs)
         if os.path.exists(self.local_path) and os.path.isdir(self.local_path):
-            self.update()
+            pass
         else:
             self.clone()
 
@@ -148,7 +147,8 @@ class HgRepository(Repository):
         run_cmd(["hg", "pull", "-u"], workdir=self.local_path)
 
     def get_rev(self):
-        return run_cmd(["hg", "log", "-l1", "--template", "{node}"], workdir=self.local_path).strip()
+        return run_cmd(["hg", "log", "-l1", "--template", "{node}"],
+                       workdir=self.local_path).strip()
 
     def set_rev(self, rev):
         run_cmd(["hg", "update", "-C", "--rev", rev], workdir=self.local_path)
@@ -160,12 +160,11 @@ class HgRepository(Repository):
         assert 0, "unimplemented"
 
     def rev_list(self, start, end):
-        assert 0, "There is a bug in this HG code.  I need to verify if I need good or parent of good for this!"
+        assert 0, "There is a bug in this HG code.  I need to verify " + \
+                  "if I need good or parent of good for this!"
         # HG is a pain in the butt.  For good..bad,
         # we need to hg up -r good ; hg log -r bad.
         log.debug("Fetching HG revision list for %s..%s", start, end)
-        sep = " --- "
-        template = "{node}%s{date}" % sep
         old_rev = self.get_rev()
         self.set_rev(start)
         command = ["hg", "log", "-r", end, "--style", "xml"]
@@ -178,15 +177,15 @@ class HgRepository(Repository):
             d = isodate.parse_datetime(log_entry.find('date').text)
             h = log_entry.get('node')
             output.append((h, d))
-        
+
         self.set_rev(old_rev)
 
         return output
 
 
 class Project(object):
-
-    def __init__(self, name, url, local_path, good, bad, vcs="git", follow_merges=False):
+    def __init__(self, name, url, local_path, good, bad,
+                 vcs="git", follow_merges=False):
         object.__init__(self)
         self.name = name
         self.url = url
@@ -203,15 +202,18 @@ class Project(object):
         else:
             log.error("Unsupported repository type")
             exit(1)
-        
+
         log.debug("Using %s for %s", str(repocls), self.name)
-        
-        self.repository = repocls(self.name, self.url, self.local_path, follow_merges=self.follow_merges)
+
+        self.repository = repocls(self.name,
+                                  self.url,
+                                  self.local_path,
+                                  follow_merges=self.follow_merges)
 
     def rev_ll(self):
         rev_list = reversed(self.repository.rev_list(self.good, self.bad))
-        head = None    
-    
+        head = None
+
         for h, date in rev_list:
             head = Rev(h, self, date, head)
 
@@ -224,7 +226,8 @@ class Project(object):
         return self.repository.resolve_tag(rev)
 
     def __str__(self):
-        return "Name: %(name)s, Url: %(url)s, Good: %(good)s, Bad: %(bad)s, VCS: %(vcs)s" % self.__dict__
+        return "Name: %(name)s, Url: %(url)s, " % (self.__dict__,) + \
+               "Good: %(good)s, Bad: %(bad)s, VCS: %(vcs)s" % self.__dict__
     __repr__ = __str__
 
 
@@ -242,5 +245,4 @@ class Rev(object):
 
     def __str__(self):
         return "%s@%s" % (self.prj.name, self.hash)
-    __repr__=__str__
-
+    __repr__ = __str__

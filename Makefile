@@ -1,5 +1,5 @@
 check:
-	#pep8 bisect_b2g tests
+	pep8 bisect_b2g tests
 	python -m unittest discover $(PWD)/tests
 
 # So that there is a standard name and url for releases
