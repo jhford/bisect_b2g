@@ -36,9 +36,11 @@ class Repository(object):
     def set_rev(self, rev):
         assert 0
 
-    def resolve_tag(self, rev=None):
+    def resolve_tag(self, rev):
         if not rev is None and not rev in self.resolved_tags:
             self.resolved_tags[rev] = self._resolve_tag(rev)
+        elif rev is None:
+            return self._resolve_tag(rev)
         return self.resolved_tags[rev]
 
     def _resolve_tag(self, rev=None):
@@ -63,7 +65,9 @@ class GitRepository(Repository):
             self.repo = git.Repo.clone_from(self.url, self.local_path)
 
     def get_rev(self, rev=None):
-        return self.repo.commit(rev if rev else 'HEAD').hexsha
+        _rev = rev if rev else 'HEAD'
+        log.debug("Getting revision for %s", _rev)
+        return self.repo.commit(_rev).hexsha
 
     def set_rev(self, rev):
         self.resolve_tag(rev)
@@ -73,9 +77,9 @@ class GitRepository(Repository):
         log.debug("Intended to set %s, actually set %s",
                   rev, self.get_rev())
 
-    def _resolve_tag(self, rev=None):
+    def _resolve_tag(self, rev):
         git = self.repo.git
-        _rev = rev[:]
+        _rev = rev[:] if rev else 'HEAD'
         try:
             _rev = git.describe(rev, tags=True, exact_match=True)
         except gitexc.GitCommandError:
@@ -132,9 +136,10 @@ class HgRepository(Repository):
             self.repo = hgapi.hg_clone(self.url, self.local_path)
 
     def get_rev(self, rev=None):
+        _rev = rev if rev else '.'
+        log.debug("Getting revision for %s", _rev)
         return self.repo.hg_log(
-            limit=1, template="{node}",
-            identifier=rev if rev else ".")
+            limit=1, identifier=_rev, **{'--template': '{node}'})
 
     def set_rev(self, rev):
         self.repo.hg_update('-r' + rev, clean=True)
@@ -142,7 +147,7 @@ class HgRepository(Repository):
     def validate_rev(self, rev):
         assert 0
 
-    def _resolve_tag(self, rev=None):
+    def _resolve_tag(self, rev):
         tags = self.repo.hg_tags()
         hg_id = self.repo.hg_log(
             limit=1, template="{node|short}",
