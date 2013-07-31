@@ -174,7 +174,6 @@ class Bisection(object):
         self.projects = projects
         self.history = history
         self.evaluator = evaluator
-        print len(history)
         self.max_recursions = \
             round(math.log(len(history), 2))
         self.pass_i = []
@@ -223,10 +222,6 @@ class Bisection(object):
                 assert len(self.pass_i + self.fail_i) == len(self.order)
                 assert max(self.pass_i) + 1 == min(self.fail_i)
                 self.found_i = min(self.fail_i)
-            print 'pass:    ', self.pass_i
-            print 'fail:    ', self.fail_i
-            print 'order:   ', self.order
-            print 'found_i: ', self.found_i
             return self.history[self.found_i]
         else:
             cur = history[middle]
