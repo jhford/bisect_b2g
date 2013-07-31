@@ -166,10 +166,6 @@ def main():
     parser.add_option("--script", "-x", help="Script to run.  Return code 0 " +
                       "means the current changesets are good, Return code 1 " +
                       "means that it's bad", dest="script")
-    parser.add_option("--follow-merges", help="Should git/hg log functions \
-                      follow both sides of a merge or only the mainline.\
-                      This equates to --first-parent in git log",
-                      dest="follow_merges", action="store_false")
     parser.add_option("-o", "--output", help="File to write HTML output to",
                       dest="output_html", default="bisect.html")
     parser.add_option("-i", "--interactive", help="Interactively determine " +
@@ -228,9 +224,7 @@ def main():
             good=repo_data['good'],
             bad=repo_data['bad'],
             vcs=repo_data['vcs'],
-            follow_merges=opts.follow_merges,
         ))
-
     combined_history = build_history(projects)
     bisection = Bisection(projects, combined_history, evaluator)
     bisection.write(opts.output_html)

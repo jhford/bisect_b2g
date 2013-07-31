@@ -13,12 +13,11 @@ log = logging.getLogger(__name__)
 
 class Repository(object):
 
-    def __init__(self, name, url, local_path, follow_merges=False):
+    def __init__(self, name, url, local_path):
         object.__init__(self)
         self.name = name
         self.url = url
         self.local_path = local_path
-        self.follow_merges = follow_merges
         self.resolved_tags = {}
         if url == local_path:
             log.info("Setting up %s", local_path)
@@ -26,9 +25,6 @@ class Repository(object):
             log.info("Setting up %s->%s", url, local_path)
 
     def sanitize(self):
-        assert 0
-
-    def clone(self):
         assert 0
 
     def init_repo(self):
@@ -64,10 +60,7 @@ class GitRepository(Repository):
             self.repo = git.Repo(self.local_path)
         else:
             log.debug("%s does not exist, cloning", self.name)
-            self.clone()
-
-    def clone(self):
-        self.repo = git.Repo.clone_from(self.url, self.local_path)
+            self.repo = git.Repo.clone_from(self.url, self.local_path)
 
     def get_rev(self, rev=None):
         return self.repo.commit(rev if rev else 'HEAD').hexsha
@@ -135,12 +128,8 @@ class HgRepository(Repository):
         Repository.__init__(self, *args, **kwargs)
         if os.path.exists(self.local_path) and os.path.isdir(self.local_path):
             self.repo = hgapi.Repo(self.local_path)
-            pass
         else:
-            self.clone()
-
-    def clone(self):
-        self.repo = hgapi.hg_clone(self.url, self.local_path)
+            self.repo = hgapi.hg_clone(self.url, self.local_path)
 
     def get_rev(self, rev=None):
         return self.repo.hg_log(
@@ -186,7 +175,7 @@ class HgRepository(Repository):
 
 class Project(object):
     def __init__(self, name, url, local_path, good, bad,
-                 vcs="git", follow_merges=False):
+                 vcs="git"):
         object.__init__(self)
         self.name = name
         self.url = url
@@ -194,7 +183,6 @@ class Project(object):
         self.good = good
         self.bad = bad
         self.vcs = vcs
-        self.follow_merges = follow_merges
 
         if self.vcs == 'git':
             repocls = GitRepository
@@ -207,8 +195,7 @@ class Project(object):
 
         self.repository = repocls(self.name,
                                   self.url,
-                                  self.local_path,
-                                  follow_merges=self.follow_merges)
+                                  self.local_path)
 
     def rev_ll(self):
         rev_list = reversed(self.repository.rev_list(self.good, self.bad))
