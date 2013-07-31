@@ -68,9 +68,6 @@ function show_tags(chkbox) {
   tr.fail {
     background: #FA8072 ;
   }
-  tr.found {
-    background: #89CFF0 ;
-  }
   tr.untested.even {
     background: #999 ;
     color: #666 ;
@@ -79,13 +76,15 @@ function show_tags(chkbox) {
     background: #666 ;
     color: #999 ;
   }
+  tr.found {
+    background: red ;
+  }
 </style>
 </head>
 <body onload="setup_page()">
 <h1>Bisection results for ${", ".join([x.name.title() for x in projects])}</h1>
 % for cls in ('found', 'pass', 'fail', 'untested'):
-<% checked = 'checked="checked"' if cls != 'untested' else '' %>
-<input value="${cls}" type="checkbox" ${checked}
+<input value="${cls}" type="checkbox" checked="checked"
     onclick="show_hide_row(this.value, this.checked)"
     class="filter">${cls.title()}</input>
 % endfor
@@ -131,14 +130,17 @@ function show_tags(chkbox) {
   % for line in history:
   <%
     classes = []
+
     if loop.index == found_i:
       classes.append('found')
+
     if loop.index in pass_i:
       classes.append('pass')
     elif loop.index in fail_i:
       classes.append('fail')
     else:
       classes.append('untested')
+
     classes = " ".join(classes)
 
     if loop.index in order:
@@ -172,25 +174,60 @@ class Bisection(object):
         self.projects = projects
         self.history = history
         self.evaluator = evaluator
+        print len(history)
         self.max_recursions = \
             round(math.log(len(history), 2))
         self.pass_i = []
         self.fail_i = []
         self.order = []
+        assert len(history) > 0
         self.found = self._bisect(self.history, 0, 0)
 
     def _bisect(self, history, num, offset_b):
+        def test(revs):
+            for rev in revs:
+                log.debug("Setting revision for %s" % rev)
+                rev.prj.set_rev(rev.hash)
+
+            _outcome = self.evaluator.eval(revs)
+
+            log.info("Test %s", 'pass' if _outcome else 'fail')
+
+            if not overall_index in self.order:
+                self.order.append(overall_index)
+            return _outcome
+
         middle = len(history) / 2
         overall_index = middle + offset_b
-        self.order.append(overall_index)
+
         if len(history) == 1:
-            self.pass_i.append(overall_index)
-            self.found_i = overall_index
             if num == self.max_recursions - 1:
                 # Sometimes, we do log2(N), others log2(N)-1
                 log.info("Psych!")
                 log.debug("We don't need to do the last recursion")
-            return history[0]
+            # We are looking for the last *broken* changeset
+            # but we don't care about the last *tested* changeset
+            # The two literal edge cases are annoying because
+            # We've declared them to be good or bad as program
+            # input
+            if len(self.fail_i) == 0:
+                self.found_i = len(self.history) - 1
+                #self.pass_i.append(self.found_i)
+            elif len(self.pass_i) == 0:
+                self.found_i = 0
+                # XXX This should be handled a little better.  Instead,
+                # let's figure out a way to show to the user that they
+                # have specified bogus rev ranges
+                self.fail_i.append(self.found_i)
+            else:
+                assert len(self.pass_i + self.fail_i) == len(self.order)
+                assert max(self.pass_i) + 1 == min(self.fail_i)
+                self.found_i = min(self.fail_i)
+            print 'pass:    ', self.pass_i
+            print 'fail:    ', self.fail_i
+            print 'order:   ', self.order
+            print 'found_i: ', self.found_i
+            return self.history[self.found_i]
         else:
             cur = history[middle]
             log.info("Running test %d of %d", num + 1,
@@ -198,15 +235,7 @@ class Bisection(object):
 
             map(log.info, cur)
 
-            for rev in cur:
-                log.debug("Setting revision for %s" % rev)
-                rev.prj.set_rev(rev.hash)
-
-            outcome = self.evaluator.eval(cur)
-
-            log.info("Test %s", "passed" if outcome else "failed")
-
-            if outcome:
+            if test(history[middle]):
                 self.pass_i.append(overall_index)
                 return self._bisect(history[middle:], num+1, offset_b + middle)
             else:

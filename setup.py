@@ -9,6 +9,7 @@ setup(
         ]
     },
     install_requires=["isodate", "mako"],
+    test_requires=["pytests", "mock"],
     test_suite='bisect_b2g.tests',
     author="John Ford",
     author_email="john@johnford.org",

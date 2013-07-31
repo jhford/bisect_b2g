@@ -190,8 +190,7 @@ class Project(object):
         elif self.vcs == 'hg':
             repocls = HgRepository
         else:
-            log.error("Unsupported repository type")
-            exit(1)
+            raise Exception("Unsupported repository type")
 
         log.debug("Using %s for %s", str(repocls), self.name)
 
