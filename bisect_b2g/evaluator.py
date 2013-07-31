@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import tempfile
 import subprocess
@@ -11,7 +12,7 @@ log = logging.getLogger(__name__)
 
 def script_evaluator(script, history):
     log.debug("Running evaluator with %s", script)
-    rc = run_cmd(command=script, rc_only=True)
+    rc, output = run_cmd(command=script, rc_only=True)
     log.debug("Script returned %d", rc)
     return rc == 0
 
@@ -46,9 +47,13 @@ def interactive_evaluator(history):
     os.write(tmpfd, rcfile)
     os.close(tmpfd)
 
+    # We don't use run_cmd here because that function uses
+    # subprocess.Popen.communicate, which wait()s for the
+    # process before displaying output.  That doesn't work
+    # here because we're doing "smart" things here
     rc = subprocess.call(
         [os.environ['SHELL'], "--rcfile", tmpn, "--noprofile"],
-        env=env)
+        env=env, stdout=sys.stdout, stderr=sys.stderr, stdin=sys.stdin)
 
     if os.path.exists(tmpn):
         os.unlink(tmpn)

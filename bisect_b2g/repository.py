@@ -28,7 +28,7 @@ class Repository(object):
     def init_repo(self):
         assert 0
 
-    def get_rev(self):
+    def get_rev(self, rev=None):
         assert 0
 
     def set_rev(self, rev):
@@ -62,9 +62,9 @@ class GitRepository(Repository):
 
         run_cmd(["git", "clone", self.url, self.local_path])
 
-    def get_rev(self):
-        return run_cmd(["git", "rev-parse", "HEAD"],
-                       workdir=self.local_path).strip()
+    def get_rev(self, rev=None):
+        return run_cmd(["git", "rev-parse", rev if rev else 'HEAD'],
+                       workdir=self.local_path)[1].strip()
 
     def set_rev(self, rev):
         # This will create a detached head
@@ -73,22 +73,20 @@ class GitRepository(Repository):
         log.debug("Set %s to %s", self.local_path, rev)
 
     def resolve_tag(self, rev=None):
-        # XXX: This is a little bit of a problem.  I run git describe
-        # twice because I don't currently have a way for run_cmd
-        # to return rc and output.
         if not rev:
             _rev = self.get_rev()
         else:
             _rev = rev
-        tag_rc = run_cmd(["git", "describe", "--tags", "--exact-match", _rev],
-                         workdir=self.local_path,
-                         rc_only=True)
-        if tag_rc != 0:
+
+        code, output = run_cmd(
+            ["git", "describe", "--tags", "--exact-match", _rev],
+            workdir=self.local_path,
+            raise_if_not=None
+        )
+        if code != 0:
             return _rev
         else:
-            return run_cmd(
-                ["git", "describe", "--tags", "--exact-match", _rev],
-                workdir=self.local_path).strip()
+            return output.strip()
 
     def validate_rev(self, rev):
         pass
@@ -110,7 +108,7 @@ class GitRepository(Repository):
         if not self.follow_merges:
             command.append("--first-parent")
         parents_of_start = run_cmd(['git', 'log', '-n1', '--pretty=%P', start],
-                                   workdir=self.local_path).strip()
+                                   workdir=self.local_path)[1].strip()
 
         if parents_of_start == '':
             log.debug("Found initial commit")
@@ -120,7 +118,7 @@ class GitRepository(Repository):
 
         command.extend(["--date-order", commit_range,
                         '--pretty=%%H%s%%ci' % sep])
-        raw_output = run_cmd(command, self.local_path)
+        raw_output = run_cmd(command, self.local_path)[1]
         intermediate_output = [x.strip() for x in raw_output.split('\n')]
         output = []
 
@@ -143,12 +141,18 @@ class HgRepository(Repository):
     def clone(self):
         run_cmd(["hg", "clone", self.url, self.local_path])
 
-    def update(self):
-        run_cmd(["hg", "pull", "-u"], workdir=self.local_path)
-
-    def get_rev(self):
-        return run_cmd(["hg", "log", "-l1", "--template", "{node}"],
-                       workdir=self.local_path).strip()
+    def get_rev(self, rev=None):
+        def cur_rev():
+            return run_cmd(["hg", "log", "-l1", "--template", "{node}"],
+                           workdir=self.local_path)[1].strip()
+        if rev:
+            old_rev = cur_rev()
+            self.set_rev(rev)
+            new_rev = cur_rev()
+            self.set_rev(old_rev)
+            return new_rev
+        else:
+            return cur_rev()
 
     def set_rev(self, rev):
         run_cmd(["hg", "update", "-C", "--rev", rev], workdir=self.local_path)
@@ -157,7 +161,8 @@ class HgRepository(Repository):
         assert 0
 
     def resolve_tag(self, rev=None):
-        assert 0, "unimplemented"
+        log.warn("HG Tag resolution is unimplmenented, return input")
+        return rev
 
     def rev_list(self, start, end):
         assert 0, "There is a bug in this HG code.  I need to verify " + \
@@ -169,7 +174,7 @@ class HgRepository(Repository):
         self.set_rev(start)
         command = ["hg", "log", "-r", end, "--style", "xml"]
 
-        raw_xml = run_cmd(command, self.local_path).strip()
+        raw_xml = run_cmd(command, self.local_path)[1].strip()
         root = ElementTree.XML(raw_xml)
         output = []
 

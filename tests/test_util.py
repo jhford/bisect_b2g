@@ -3,6 +3,8 @@
 import os
 import stat
 import unittest
+import subprocess
+import tempfile
 
 import bisect_b2g.util as util
 
@@ -83,53 +85,55 @@ class RunCmdTest(unittest.TestCase):
 
     def test_default(self):
         self.assertTrue(os.access(dumbo, os.R_OK | os.X_OK))
-        expected_output = "I am dumb"
-        command = [dumbo, expected_output]
-        actual_output = util.run_cmd(command)
+        expected_output = "I am dumb\n"
+        command = [dumbo, 'STDOUT:' + expected_output]
+        actual_output = util.run_cmd(command)[1]
         # XXX: Figure out why I need to strip the output!
         self.assertEqual(
-            expected_output.strip(),
-            actual_output.strip(),
+            expected_output + '\n',
+            actual_output,
             "'%s' != '%s'" % (expected_output, actual_output))
 
     def test_rc_only(self):
         self.assertTrue(os.access(dumbo, os.R_OK | os.X_OK))
+        command = [dumbo, "STDOUT:Hello", "STDERR:Bye", "--exit-code"]
         exit_code = 69
-        rc = util.run_cmd([dumbo, "--exit-code", str(exit_code), "Hello"],
-                          rc_only=True)
-        self.assertEqual(exit_code, rc)
-        rc = util.run_cmd([dumbo, "--exit-code", str(exit_code+1), "Hello"],
-                          rc_only=True)
-        self.assertNotEqual(exit_code, rc)
-
-    def test_ignore_err(self):
-        self.assertTrue(os.access(dumbo, os.R_OK | os.X_OK))
-        command_with_stderr = [
-            dumbo, "STDOUT:stdout", "STDERR:stderr", "STDOUT:stdout"
-        ]
-        output = util.run_cmd(command_with_stderr, inc_err=False,
-                              ignore_err=True)
-        self.assertEqual(
-            'stdout\nstdout\n',
-            output
-        )
+        rv = util.run_cmd(command + [str(exit_code)], rc_only=True)
+        self.assertEqual(exit_code, rv[0])
+        rv = util.run_cmd(command + [str(exit_code + 1)], rc_only=True)
+        self.assertNotEqual(exit_code, rv[0])
+        self.assertEqual(None, rv[1])
 
     def test_inc_err(self):
         self.assertTrue(os.access(dumbo, os.R_OK | os.X_OK))
         command_with_stderr = [
             dumbo, "STDOUT:stdout", "STDERR:stderr", "STDOUT:stdout"
         ]
-        output = util.run_cmd(command_with_stderr, inc_err=True,
-                              ignore_err=False)
+        output = util.run_cmd(command_with_stderr, inc_err=True)
         self.assertEqual(
             'stdout\nstderr\nstdout\n',
-            output
+            output[1]
         )
+        output = util.run_cmd(command_with_stderr, inc_err=False)
+        self.assertEqual(
+            'stdout\nstdout\n',
+            output[1]
+        )
+
+    def test_workdir(self):
+        real_workdir = subprocess.check_output(['pwd', '-P']).strip()
+        self.assertEqual(real_workdir, os.getcwd())
+        code, output = util.run_cmd(['pwd', '-P'], workdir=os.getcwd())
+        self.assertEqual(os.getcwd() + '\n', output)
+        tmpdir = tempfile.mkdtemp(prefix=__file__)
+        code, output = util.run_cmd(['pwd', '-P'], workdir=tmpdir)
+        self.assertEqual(tmpdir + '\n', output)
+        os.rmdir(tmpdir)
 
     def test_stupidity(self):
         self.assertRaises(
-            Exception,
+            util.RunCommandException,
             util.run_cmd,
             ([dumbo, "STDOUT:stdout", "STDERR:stderr"]),
-            {'inc_err': True, 'ignore_err': True}
+            **{'inc_err': True, 'rc_only': True}
         )
