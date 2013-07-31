@@ -7,6 +7,7 @@ import isodate
 import git
 
 from bisect_b2g.util import run_cmd
+import git.exc as gitexc
 
 log = logging.getLogger(__name__)
 
@@ -19,7 +20,11 @@ class Repository(object):
         self.url = url
         self.local_path = local_path
         self.follow_merges = follow_merges
-        log.info("Setting up %s->%s", name, local_path)
+        self.resolved_tags = {}
+        if url == local_path:
+            log.info("Setting up %s", local_path)
+        else:
+            log.info("Setting up %s->%s", url, local_path)
 
     def sanitize(self):
         assert 0
@@ -37,6 +42,11 @@ class Repository(object):
         assert 0
 
     def resolve_tag(self, rev=None):
+        if not rev is None and not rev in self.resolved_tags:
+            self.resolved_tags[rev] = self._resolve_tag(rev)
+        return self.resolved_tags[rev]
+
+    def _resolve_tag(self, rev=None):
         assert 0
 
     def validate_rev(self, rev):
@@ -64,18 +74,21 @@ class GitRepository(Repository):
         return self.repo.commit(rev if rev else 'HEAD').hexsha
 
     def set_rev(self, rev):
-        # This will create a detached head
+        self.resolve_tag(rev)
         self.repo.head.reset(index=True, working_tree=True)
-        self.repo.commit(rev)
+        self.repo.git.checkout(rev)
         log.debug("Set %s to %s", self.local_path, rev)
+        log.debug("Intended to set %s, actually set %s",
+                  rev, self.get_rev())
 
-    def resolve_tag(self, rev=None):
+    def _resolve_tag(self, rev=None):
         git = self.repo.git
+        _rev = rev[:]
         try:
-            return git.describe(
-                rev, tags=True, exact_match=True)
-        except git.exc.GitCommandError:
-            return rev
+            _rev = git.describe(rev, tags=True, exact_match=True)
+        except gitexc.GitCommandError:
+            pass
+        return _rev
 
     def validate_rev(self, rev):
         pass
@@ -88,7 +101,8 @@ class GitRepository(Repository):
         else:
             rev_spec = '%s^..%s' % (start, end)
 
-        commits = self.repo.iter_commits(rev=rev_spec)
+        commits = self.repo.iter_commits(rev=rev_spec,
+                                         first_parent=True)
 
         output = []
 
@@ -112,6 +126,7 @@ class GitRepository(Repository):
                     commit.committed_date,
                     FixedSecondsOffset(commit.committer_tz_offset))
             ))
+        output.reverse()
         return output
 
 
@@ -138,7 +153,7 @@ class HgRepository(Repository):
     def validate_rev(self, rev):
         assert 0
 
-    def resolve_tag(self, rev=None):
+    def _resolve_tag(self, rev=None):
         log.debug("HG Tag resolution is unimplmenented, return input")
         return rev
 
