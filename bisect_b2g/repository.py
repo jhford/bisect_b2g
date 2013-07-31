@@ -153,7 +153,7 @@ class HgRepository(Repository):
         assert 0
 
     def resolve_tag(self, rev=None):
-        log.warn("HG Tag resolution is unimplmenented, return input")
+        log.debug("HG Tag resolution is unimplmenented, return input")
         return rev
 
     def rev_list(self, start, end):
