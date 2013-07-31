@@ -9,11 +9,16 @@ pep8:
 	@echo ================================================
 	pep8 -v bisect_b2g tests
 
+
+TEST_RUNNER=python -m unittest discover -v
+#TEST_RUNNER=nosetests -v
+#TEST_RUNNER=py.test
+
 tests:
 	@echo ========================
 	@echo \|\| Running unit tests \|\|
 	@echo ========================
-	python -m unittest discover -v $(PWD)/tests
+	$(TEST_RUNNER) $(PWD)/tests
 
 .PHONY: check pep8 tests
 

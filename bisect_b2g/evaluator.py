@@ -7,6 +7,9 @@ import subprocess
 from bisect_b2g.util import run_cmd
 
 
+GOOD = 69
+BAD = 96
+
 log = logging.getLogger(__name__)
 
 
@@ -38,8 +41,9 @@ class ScriptEvaluator(Evaluator):
 
 class InteractiveEvaluator(Evaluator):
 
-    def __init__(self):
+    def __init__(self, stdin_file=sys.stdin):
         Evaluator.__init__(self)
+        self.stdin_file = stdin_file
 
     def generate_script(self):
         rcfile = """
@@ -48,20 +52,18 @@ class InteractiveEvaluator(Evaluator):
         echo
 
         function good () {
-            exit 69
+            exit %d
         }
 
         function bad () {
-            exit 96
+            exit %d
         }
 
-        """
+        """ % (GOOD, BAD)
         tmpfd, tmpn = tempfile.mkstemp()
         os.write(tmpfd, rcfile)
         os.close(tmpfd)
         return tmpn
-
-
 
     def eval(self, history_line):
         # STEPS:
@@ -83,28 +85,23 @@ class InteractiveEvaluator(Evaluator):
         # here because we're doing "smart" things here
         code = subprocess.call(
             [os.environ['SHELL'], "--rcfile", rcfile, "--noprofile"],
-            env=env, stdout=sys.stdout, stderr=sys.stderr, stdin=sys.stdin)
+            env=env, stdout=sys.stdout, stderr=sys.stderr,
+            stdin=self.stdin_file)
 
         if os.path.exists(rcfile):
             os.unlink(rcfile)
 
-        if code == 69:
+        if code == GOOD:
             rv = True
-        elif code == 96:
+        elif code == BAD:
             rv = False
         elif code == 0:
             log.warning("Received an exit command from interactive " +
                         " console, exiting bisection completely")
             exit(1)
         else:
-            raise EvaluatorError("An unexpected exit code '%d' occured in" +
-                                 "the interactive prompt" % code)
+            raise EvaluatorError(
+                "An unexpected exit code '%d' occured in " % code +
+                                 "the interactive prompt")
         log.debug("Interactive evaluator returned %d", code)
         return rv
-
-
-def script_evaluator(script, history):
-    log.debug("Running evaluator with %s", script)
-    rc, output = run_cmd(command=script, rc_only=True)
-    log.debug("Script returned %d", rc)
-    return rc == 0
