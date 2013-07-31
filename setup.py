@@ -8,7 +8,7 @@ setup(
             'bisect = bisect_b2g.driver:main'
         ]
     },
-    install_requires=["isodate", "mako", "GitPython>=0.3"],
+    install_requires=["isodate", "mako", "GitPython>=0.3", "hgapi"],
     tests_require=["pytest", "mock"],
     test_suite='bisect_b2g.tests',
     author="John Ford",

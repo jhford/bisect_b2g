@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# From 8d8af3f039d5f3bdf24b91cd0ce62798e1feac96
-grep '<form role="dialog" data-type="confirm">' /Users/jhford/b2g/bisect-b2g/repos/gaia/apps/camera/index.html
+# From git gaia 5a1c8dd69f66c8b5a7f2e5bc0fc183992af07b44's second parent
+
+grep '           <span id="dialer-message-text" data-l10n-id="NoPreviousOutgoingCalls" hidden> </span>'\
+    gaia/apps/communications/dialer/index.html
 
 if [ $? -eq 0 ] ; then
     echo FOUND

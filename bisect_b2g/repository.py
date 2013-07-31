@@ -5,9 +5,8 @@ import datetime
 
 import isodate
 import git
-
-from bisect_b2g.util import run_cmd
 import git.exc as gitexc
+import hgapi
 
 log = logging.getLogger(__name__)
 
@@ -135,35 +134,45 @@ class HgRepository(Repository):
     def __init__(self, *args, **kwargs):
         Repository.__init__(self, *args, **kwargs)
         if os.path.exists(self.local_path) and os.path.isdir(self.local_path):
+            self.repo = hgapi.Repo(self.local_path)
             pass
         else:
             self.clone()
 
     def clone(self):
-        run_cmd(["hg", "clone", self.url, self.local_path])
+        self.repo = hgapi.hg_clone(self.url, self.local_path)
 
     def get_rev(self, rev=None):
-        return run_cmd(["hg", "log", "-l1", "--template", "{node}",
-                        "-r", rev if rev else "."],
-                       workdir=self.local_path)[1].strip()
+        return self.repo.hg_log(
+            limit=1, template="{node}",
+            identifier=rev if rev else ".")
 
     def set_rev(self, rev):
-        run_cmd(["hg", "update", "-C", "--rev", rev], workdir=self.local_path)
+        self.repo.hg_update('-r' + rev, clean=True)
 
     def validate_rev(self, rev):
         assert 0
 
     def _resolve_tag(self, rev=None):
-        log.debug("HG Tag resolution is unimplmenented, return input")
-        return rev
+        tags = self.repo.hg_tags()
+        hg_id = self.repo.hg_log(
+            limit=1, template="{node|short}",
+            identifier=rev if rev else ".")
+        found_tags = []
+        for k in tags.keys():
+            if tags[k] == hg_id:
+                found_tags.append(k)
+        if len(found_tags) > 0:
+            return " ".join(found_tags)
+        else:
+            return rev
 
     def rev_list(self, start, end):
         log.debug("Fetching HG revision list for %s..%s", start, end)
-        command = ["hg", "log", "-r", "%s..%s" % (start, end),
-                   "--style", "xml"]
+        raw_xml = self.repo.hg_log(
+            "%s..%s" % (start, end), **{'--style': 'xml'})
 
-        raw_xml = run_cmd(command, self.local_path)[1].strip()
-        root = ElementTree.XML(raw_xml)
+        root = ElementTree.XML(raw_xml.encode('utf-8'))
         output = []
 
         for log_entry in root.findall('logentry'):
