@@ -9,7 +9,7 @@ import bisect_b2g
 from bisect_b2g.repository import Project
 from bisect_b2g.bisection import Bisection
 from bisect_b2g.history import build_history
-from bisect_b2g.evaluator import script_evaluator, interactive_evaluator
+from bisect_b2g.evaluator import ScriptEvaluator, InteractiveEvaluator
 
 
 class InvalidArg(Exception):
@@ -202,9 +202,9 @@ def main():
         parser.print_help()
         parser.exit(2)
     elif opts.script:
-        evaluator = lambda x: script_evaluator(opts.script, x)
+        evaluator = ScriptEvaluator(opts.script)
     else:
-        evaluator = lambda x: interactive_evaluator(x)
+        evaluator = InteractiveEvaluator()
 
     projects = []
 

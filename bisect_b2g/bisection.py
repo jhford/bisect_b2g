@@ -202,7 +202,7 @@ class Bisection(object):
                 log.debug("Setting revision for %s" % rev)
                 rev.prj.set_rev(rev.hash)
 
-            outcome = self.evaluator(cur)
+            outcome = self.evaluator.eval(cur)
 
             log.info("Test %s", "passed" if outcome else "failed")
 
