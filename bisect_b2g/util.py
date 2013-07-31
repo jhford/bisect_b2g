@@ -3,7 +3,6 @@
 import os
 import subprocess
 import logging
-import select
 
 log = logging.getLogger(__name__)
 

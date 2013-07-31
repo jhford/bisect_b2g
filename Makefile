@@ -7,7 +7,8 @@ pep8:
 	@echo ================================================
 	@echo \|\| Running pep8 checks against code and tests \|\|
 	@echo ================================================
-	pep8 -v bisect_b2g tests
+	@which pep8 || pip install pep8
+	find bisect_b2g -type f -name "*.py" -exec pep8 -v {} +
 
 
 #TEST_RUNNER=python -m unittest discover -v
@@ -18,7 +19,7 @@ tests:
 	@echo ========================
 	@echo \|\| Running unit tests \|\|
 	@echo ========================
-	$(TEST_RUNNER) $(PWD)/tests
+	$(TEST_RUNNER) $(PWD)/bisect_b2g/tests
 
 .PHONY: check pep8 tests
 
@@ -29,7 +30,8 @@ remotes:
 	git remote add mozilla-b2g github.com:mozilla-b2g/bisect_b2g.git
 
 # Do a release!
-release:
+release: check
+	python setup.py test
 	[ -f ~/.pypirc ] # So automatic submission works
 	[ "x$(version)" != "x" ] # Make sure that there is a version defined
 	@echo Version Bump

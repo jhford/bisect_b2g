@@ -102,6 +102,6 @@ class InteractiveEvaluator(Evaluator):
         else:
             raise EvaluatorError(
                 "An unexpected exit code '%d' occured in " % code +
-                                 "the interactive prompt")
+                "the interactive prompt")
         log.debug("Interactive evaluator returned %d", code)
         return rv
