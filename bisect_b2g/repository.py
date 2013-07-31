@@ -142,17 +142,9 @@ class HgRepository(Repository):
         run_cmd(["hg", "clone", self.url, self.local_path])
 
     def get_rev(self, rev=None):
-        def cur_rev():
-            return run_cmd(["hg", "log", "-l1", "--template", "{node}"],
-                           workdir=self.local_path)[1].strip()
-        if rev:
-            old_rev = cur_rev()
-            self.set_rev(rev)
-            new_rev = cur_rev()
-            self.set_rev(old_rev)
-            return new_rev
-        else:
-            return cur_rev()
+        return run_cmd(["hg", "log", "-l1", "--template", "{node}",
+                        "-r", rev if rev else "."],
+                       workdir=self.local_path)[1].strip()
 
     def set_rev(self, rev):
         run_cmd(["hg", "update", "-C", "--rev", rev], workdir=self.local_path)
@@ -165,14 +157,9 @@ class HgRepository(Repository):
         return rev
 
     def rev_list(self, start, end):
-        assert 0, "There is a bug in this HG code.  I need to verify " + \
-                  "if I need good or parent of good for this!"
-        # HG is a pain in the butt.  For good..bad,
-        # we need to hg up -r good ; hg log -r bad.
         log.debug("Fetching HG revision list for %s..%s", start, end)
-        old_rev = self.get_rev()
-        self.set_rev(start)
-        command = ["hg", "log", "-r", end, "--style", "xml"]
+        command = ["hg", "log", "-r", "%s..%s" % (start, end),
+                   "--style", "xml"]
 
         raw_xml = run_cmd(command, self.local_path)[1].strip()
         root = ElementTree.XML(raw_xml)
@@ -182,8 +169,6 @@ class HgRepository(Repository):
             d = isodate.parse_datetime(log_entry.find('date').text)
             h = log_entry.get('node')
             output.append((h, d))
-
-        self.set_rev(old_rev)
 
         return output
 
