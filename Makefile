@@ -1,6 +1,15 @@
 check:
-	pep8 bisect_b2g tests
-	python -m unittest discover $(PWD)/tests
+	@echo ================================================
+	@echo \|\| Running pep8 checks against code and tests \|\|
+	@echo ================================================
+	pep8 -v bisect_b2g tests
+	@echo ========================
+	@echo \|\| Running unit tests \|\|
+	@echo ========================
+	python -m unittest discover -v $(PWD)/tests
+	@echo ====================
+	@echo \|\| It all passed! \|\|
+	@echo ====================
 
 # So that there is a standard name and url for releases
 remotes:
