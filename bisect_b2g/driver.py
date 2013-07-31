@@ -2,6 +2,8 @@ import os
 import optparse
 import urlparse
 import logging
+import cProfile
+import pstats
 
 log = logging.getLogger(__name__)
 
@@ -173,6 +175,7 @@ def main():
                       dest="interactive", action="store_true")
     parser.add_option("-v", "--verbose", help="Logfile verbosity",
                       action="store_true", dest="verbose")
+    parser.add_option("--profile-output", dest="prof_out", default=None)
     opts, args = parser.parse_args()
 
     # Set up logging
@@ -209,6 +212,9 @@ def main():
         parser.print_help()
         parser.exit()
 
+    if opts.prof_out:
+        pr = cProfile.Profile()
+        pr.enable()
     for arg in args:
         try:
             repo_data = parse_arg(arg)
@@ -228,6 +234,13 @@ def main():
     combined_history = build_history(projects)
     bisection = Bisection(projects, combined_history, evaluator)
     bisection.write(opts.output_html)
+    if opts.prof_out:
+        pr.disable()
+        with open(opts.prof_out, 'w+b') as f:
+            ps = pstats.Stats(pr, stream=f)
+            ps.strip_dirs()
+            ps.sort_stats('cumulative', 'time')
+            ps.print_stats()
     log.info("Found:")
     map(log.info, ["  * %s@%s" % (rev.prj.name, rev.hash)
                    for rev in bisection.found])
