@@ -10,9 +10,9 @@ pep8:
 	pep8 -v bisect_b2g tests
 
 
-TEST_RUNNER=python -m unittest discover -v
+#TEST_RUNNER=python -m unittest discover -v
 #TEST_RUNNER=nosetests -v
-#TEST_RUNNER=py.test
+TEST_RUNNER=py.test -v
 
 tests:
 	@echo ========================
