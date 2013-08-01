@@ -77,7 +77,8 @@ function show_tags(chkbox) {
     color: #999 ;
   }
   tr.found {
-    background: red ;
+    background: blue ;
+    color: white;
   }
 </style>
 </head>
@@ -204,25 +205,8 @@ class Bisection(object):
                 # Sometimes, we do log2(N), others log2(N)-1
                 log.info("Psych!")
                 log.debug("We don't need to do the last recursion")
-            # We are looking for the last *broken* changeset
-            # but we don't care about the last *tested* changeset
-            # The two literal edge cases are annoying because
-            # We've declared them to be good or bad as program
-            # input
-            if len(self.fail_i) == 0:
-                self.found_i = len(self.history) - 1
-                #self.pass_i.append(self.found_i)
-            elif len(self.pass_i) == 0:
-                self.found_i = 0
-                # XXX This should be handled a little better.  Instead,
-                # let's figure out a way to show to the user that they
-                # have specified bogus rev ranges
-                self.fail_i.append(self.found_i)
-            else:
-                assert len(self.pass_i + self.fail_i) == len(self.order)
-                assert max(self.pass_i) + 1 == min(self.fail_i)
-                self.found_i = min(self.fail_i)
-            return self.history[self.found_i]
+            self.found_i = overall_index
+            return history[0]
         else:
             cur = history[middle]
             log.info("Running test %d of %d", num + 1,
