@@ -11,8 +11,8 @@ pep8:
 	find bisect_b2g -type f -name "*.py" -exec pep8 -v {} +
 
 
-TEST_RUNNER=python -m unittest discover -v
-#TEST_RUNNER=nosetests -v
+#TEST_RUNNER=python -m unittest discover -v
+TEST_RUNNER=nosetests -v
 #TEST_RUNNER=py.test -v
 
 tests:
