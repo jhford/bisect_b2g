@@ -6,10 +6,7 @@ python:
   - "3.3"
 # command to install dependencies
 install:
-  - "pip install isodate mako hgapi GitPython pytest mock pytz mercurial"
+  - "pip install isodate mako hgapi GitPython pytest mock pytz mercurial pep8"
   - "apt-get install git"
 # command to run tests
-script: 
-  - "git --version"
-  - "hg --version"
-  - "nosetests -v"
+script: make
