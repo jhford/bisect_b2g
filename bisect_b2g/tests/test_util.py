@@ -25,11 +25,11 @@ class TestEnvironmentGeneration(unittest.TestCase):
     def setUp(self):
         self.real_env = dict(os.environ)
 
-    def test_no_add_or_delete(self):
+    def test_make_env_no_add_or_delete(self):
         gen_env = util.generate_env()
         self.assertTrue(compare_dicts(self.real_env, gen_env))
 
-    def test_add_var(self):
+    def test_make_env_adding_var(self):
         key = 'TESTING123'
         value = key + 'VALUE'
         self.assertFalse(key in self.real_env)
@@ -38,7 +38,7 @@ class TestEnvironmentGeneration(unittest.TestCase):
         self.real_env[key] = value
         self.assertTrue(compare_dicts(self.real_env, gen_env))
 
-    def test_overwrite_var(self):
+    def test_make_env_overwriting_var(self):
         key = 'HOME'
         value = 'INVALID'
         self.assertTrue(key in self.real_env)
@@ -47,14 +47,14 @@ class TestEnvironmentGeneration(unittest.TestCase):
         self.real_env[key] = value
         self.assertTrue(compare_dicts(self.real_env, gen_env))
 
-    def test_del_var(self):
+    def test_make_env_deleting_var(self):
         key = 'HOME'
         self.assertTrue(key in self.real_env)
         gen_env = util.generate_env(delete_env=[key])
         del self.real_env[key]
         self.assertTrue(compare_dicts(self.real_env, gen_env))
 
-    def test_add_and_del_var(self):
+    def test_make_env_add_and_delete_different_var(self):
         add_key = 'TESTING123'
         value = add_key + 'VALUE'
         del_key = 'HOME'
@@ -66,7 +66,7 @@ class TestEnvironmentGeneration(unittest.TestCase):
         self.real_env[add_key] = value
         self.assertTrue(compare_dicts(self.real_env, gen_env))
 
-    def test_add_and_del_same_var(self):
+    def test_make_env_add_and_delete_same_var(self):
         add_key = 'HOME'
         value = add_key + 'VALUE'
         del_key = 'HOME'
@@ -94,7 +94,7 @@ class RunCmdTest(unittest.TestCase):
             actual_output,
             "'%s' != '%s'" % (expected_output, actual_output))
 
-    def test_rc_only(self):
+    def test_run_cmd_rc_only(self):
         self.assertTrue(os.access(dumbo, os.R_OK | os.X_OK))
         command = [dumbo, "STDOUT:Hello", "STDERR:Bye", "--exit-code"]
         exit_code = 69
@@ -104,7 +104,7 @@ class RunCmdTest(unittest.TestCase):
         self.assertNotEqual(exit_code, rv[0])
         self.assertEqual(None, rv[1])
 
-    def test_inc_err(self):
+    def test_run_cmd_inc_err(self):
         self.assertTrue(os.access(dumbo, os.R_OK | os.X_OK))
         command_with_stderr = [
             dumbo, "STDOUT:stdout", "STDERR:stderr", "STDOUT:stdout"
@@ -120,7 +120,7 @@ class RunCmdTest(unittest.TestCase):
             output[1]
         )
 
-    def test_workdir(self):
+    def test_run_cmd_setting_workdir(self):
         real_workdir = subprocess.check_output(['pwd', '-P']).strip()
         self.assertEqual(real_workdir, os.getcwd())
         code, output = util.run_cmd(['pwd', '-P'], workdir=os.getcwd())
@@ -130,7 +130,7 @@ class RunCmdTest(unittest.TestCase):
         self.assertEqual(tmpdir + '\n', output)
         os.rmdir(tmpdir)
 
-    def test_stupidity(self):
+    def test_run_cmd_conflicting_options(self):
         self.assertRaises(
             util.RunCommandException,
             util.run_cmd,

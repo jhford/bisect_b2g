@@ -23,7 +23,8 @@ class InteractiveEvaluatorTests(unittest.TestCase):
 
     # XXX: I'm not sure how to do these tests exactly
 
-    def _test_script_evaluator_good(self):
+    @unittest.skip("Unsure why this is broken")
+    def test_script_evaluator_good(self):
         with tempfile.TemporaryFile() as f:
             f.write('good\n')
             f.flush()
@@ -31,7 +32,8 @@ class InteractiveEvaluatorTests(unittest.TestCase):
             se = evaluator.InteractiveEvaluator(stdin_file=f)
             self.assertEqual(True, se.eval(object()))
 
-    def _test_script_evaluator_bad(self):
+    @unittest.skip("Unsure why this is broken")
+    def test_script_evaluator_bad(self):
         with tempfile.TemporaryFile() as f:
             f.write('bad\n')
             f.flush()

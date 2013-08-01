@@ -70,28 +70,29 @@ class ArgTests(unittest.TestCase):
 
 
 class MakeArgTests(ArgTests):
-    def test_simple(self):
+
+    def test_make_arg_no_uri(self):
         simple_arg = driver.make_arg(self.simple_arg_data)
         self.assertEqual(
             simple_arg,
             "GIT%(local_path)s@%(good)s..%(bad)s" % self.simple_arg_data
         )
 
-    def test_full(self):
+    def test_make_arg_with_uri(self):
         full_arg = driver.make_arg(self.full_arg_data)
         self.assertEqual(
             full_arg,
             "GIT%(uri)s->%(local_path)s@%(good)s..%(bad)s" % self.full_arg_data
         )
 
-    def test_invalid_name(self):
+    def test_make_arg_with_invalid_name(self):
         # Let's make some bogus arg_data
         self.full_arg_data['name'] = 'something-invalid'
         self.assertRaises(driver.InvalidArg,
                           driver.make_arg,
                           self.full_arg_data)
 
-    def test_invalid_vcs(self):
+    def test_make_arg_with_invalid_vcs(self):
         self.full_arg_data['vcs'] = 'something-invalid'
         self.assertRaises(driver.InvalidArg,
                           driver.make_arg,
@@ -100,15 +101,15 @@ class MakeArgTests(ArgTests):
 
 class ParseArgTests(ArgTests):
 
-    def test_simple(self):
+    def test_parse_arg_no_uri(self):
         out_data = driver.parse_arg(self.simple_arg)
         self.assertTrue(comp_dict(self.simple_arg_data, out_data))
 
-    def test_with_uri(self):
+    def test_parse_arg_with_uri(self):
         out_data = driver.parse_arg(self.full_arg)
         self.assertTrue(comp_dict(self.full_arg_data, out_data))
 
-    def test_vcs_guess(self):
+    def test_parse_arg_guess_vcs(self):
         git_urls = ('github.com:foo/bar.git', 'git://github.com:foo/bar.git',
                     'git://github.com:foo/bar')
         hg_urls = ('https://hg.mozilla.org/foo',)
@@ -121,20 +122,20 @@ class ParseArgTests(ArgTests):
                 out_data['vcs'],
                 uri + ' ' + expected + "!=" + out_data['vcs'])
 
-    def test_ambiguous(self):
+    def test_parse_arg_ambiguous_argument(self):
         bad_uri = 'https://zombo.com/test->notspecific@good..bad'
         self.assertRaises(driver.InvalidArg,
                           driver.parse_arg,
                           (bad_uri))
 
-    def test_data_has_conflicting_clues(self):
+    def test_parse_arg_with_conflicting_vcs_clues(self):
         bad_uri = \
             'github.comhg.mozilla.org/mozilla-central->notspecific@good..bad'
         self.assertRaises(driver.InvalidArg,
                           driver.parse_arg,
                           (bad_uri))
 
-    def test_data_is_hg_starts_with_git_scheme(self):
+    def test_parse_arg_git_prefix_with_hg_server(self):
         bad_uri = 'git://hg.mozilla.org/mozilla-central->notspecific@good..bad'
         self.assertRaises(driver.InvalidArg,
                           driver.parse_arg,
