@@ -6,7 +6,7 @@ from mako.template import Template
 
 # I would love templates to be in a data file.  PR encouraged!
 
-html_template = """<!DOCTYPE html><%! import isodate %>
+html_template = """<!DOCTYPE html><%! import isodate, datetime, socket %>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -48,41 +48,66 @@ function show_tags(chkbox) {
 
 </script>
 <style>
+  /*http://tango.freedesktop.org/Tango_Icon_Theme_Guidelines*/
+  div#page{
+    color: #2e3436;
+  }
+  div#header {
+    text-align: center;
+    margin-bottom: 15px;
+  }
+  div#footer{
+    text-align: right;
+    font-size: small;
+    color: #555753
+  }
   table {
-    border-collapse: collapse ;
-    border: solid 1px black ;
+    border-collapse: collapse;
+    border: solid 1px #2e3436;
+    margin: auto;
+  }
+  thead, tfoot {
+    border-bottom: solid 5px #2e3436;
+    font-weight: bold;
   }
   thead {
-    border-bottom: solid 3px red ;
+    font-size: x-large;
   }
   tfoot {
-    border-top: solid 3px red ;
-    font-weight: bold ;
+    border-top: solid 5px #2e3436;
   }
   th,td {
-    border: solid 1px black ;
+    border: solid 1px black;
   }
-  tr.pass {
-    background: #90EE90 ;
+  tr.pass.even {
+    background: #73d216;
   }
-  tr.fail {
-    background: #FA8072 ;
+  tr.pass.odd {
+    background: #8ae234;
+  }
+  tr.fail.even {
+    background: #cc0000;
+    color: white ;
+  }
+  tr.fail.odd {
+    background: #a40000;
+    color: white ;
   }
   tr.untested.even {
-    background: #999 ;
-    color: #666 ;
+    background: #d3d7cf;
   }
   tr.untested.odd {
-    background: #666 ;
-    color: #999 ;
+    background: #babdb6;
   }
-  tr.found {
-    background: blue ;
+  tr.found.pass, tr.found.fail {
+    background: #204a87;
     color: white;
   }
 </style>
 </head>
 <body onload="setup_page()">
+<div id="page">
+<div id="header">
 <h1>Bisection results for ${", ".join([x.name.title() for x in projects])}</h1>
 % for cls in ('found', 'pass', 'fail', 'untested'):
 <input value="${cls}" type="checkbox" checked="checked"
@@ -91,12 +116,13 @@ function show_tags(chkbox) {
 % endfor
 <input value="tags" type="checkbox" onclick="show_tags(this)"
     id="tags" class="option">Show Tags</input>
+</div>
 <table>
   <thead>
   <tr>
     <th>Count</th>
     % for project in sorted(projects, key=lambda x: x.name):
-    % for info in ('Hash', 'Date'):
+    % for info in ('Commit', 'Date'):
     <th>${project.name.title()} ${info}</th>
     % endfor
     % endfor
@@ -161,6 +187,11 @@ function show_tags(chkbox) {
   % endfor
   </tbody>
 </table>
+<div id="footer">
+    <p>Generated ${datetime.datetime.now().isoformat()} on
+    ${socket.gethostname()}</p>
+</div>
+</div>
 </body>
 </html>
 """
