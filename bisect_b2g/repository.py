@@ -97,6 +97,7 @@ class GitRepository(Repository):
         else:
             rev_spec = '%s^..%s' % (start, end)
 
+        log.debug("Using revspec '%s'", rev_spec)
         commits = self.repo.iter_commits(rev=rev_spec,
                                          first_parent=True)
 
@@ -163,9 +164,14 @@ class HgRepository(Repository):
 
     def rev_list(self, start, end):
         log.debug("Fetching HG revision list for %s..%s", start, end)
-        raw_xml = self.repo.hg_log(
-            "p1(first(children(%s))..first(children(%s)))" % (
-                start, end), **{'--style': 'xml'})
+        # XXX This is busted somehow
+        #rev_range = "p1(first(children(%s))..first(children(%s)))" % (
+        #   end, start)
+        rev_range = "%s:%s" % (start, end)
+        log.debug("Using revset '%s'", rev_range)
+        raw_xml = self.repo.hg_log(rev_range, **{'--style': 'xml'})
+
+        assert len(raw_xml) > 0, "No XML returned!"
 
         root = ElementTree.XML(raw_xml.encode('utf-8'))
         output = []
