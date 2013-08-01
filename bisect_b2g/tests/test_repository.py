@@ -3,12 +3,11 @@ import os
 import shutil
 import tempfile
 
-import git
 import datetime
 import pytz
 
 from bisect_b2g.util import run_cmd
-from bisect_b2g.repository import Project, GitRepository, HgRepository, Rev
+from bisect_b2g.repository import Project, GitRepository, HgRepository
 
 
 class TempGitRepository(object):
@@ -69,7 +68,6 @@ class TempHgRepository(object):
             self.revisions.append(
                 {'name': str(r_name), 'commit': commit,
                  'date': date})
-
 
 
 class BaseRepositoryFixture(object):
@@ -212,9 +210,7 @@ class HgRepositoryTests(HgTests, BaseRepositoryFixture, unittest.TestCase):
         BaseRepositoryFixture.test_set_rev_by_tag(self)
 
 
-
 class BaseProjectTests(object):
-
 
     def make_project(self, count, good_i, bad_i):
         assert good_i >= 0
@@ -274,5 +270,3 @@ class GitProjectTests(GitTests, BaseProjectTests, unittest.TestCase):
 
 class HgProjectTests(HgTests, BaseProjectTests, unittest.TestCase):
     pass
-
-
