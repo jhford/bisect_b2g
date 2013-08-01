@@ -4,5 +4,7 @@ python:
 # command to install dependencies
 install:
   - "pip install isodate mako hgapi GitPython pytest mock pytz mercurial pep8"
+  - "sudo apt-get install git-core"
+  - "sudo chmod 777 /tmp"
 # command to run tests
 script: make
