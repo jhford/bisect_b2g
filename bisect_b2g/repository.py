@@ -211,15 +211,6 @@ class Project(object):
     def rev_list(self):
         return self.repository.rev_list(self.good, self.bad)
 
-    def rev_ll(self):
-        rev_list = reversed(self.repository.rev_list(self.good, self.bad))
-        head = None
-
-        for h, date in rev_list:
-            head = Rev(h, self, date, head)
-
-        return head
-
     def set_rev(self, rev):
         return self.repository.set_rev(rev)
 
