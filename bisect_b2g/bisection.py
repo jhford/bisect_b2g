@@ -188,7 +188,8 @@ function show_tags(chkbox) {
   </tbody>
 </table>
 <div id="footer">
-    <p>Generated ${datetime.datetime.now().isoformat()} on
+    <p>Generated
+    ${datetime.datetime.now().replace(microsecond=0).isoformat()} on
     ${socket.gethostname()}</p>
 </div>
 </div>
