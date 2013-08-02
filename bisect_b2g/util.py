@@ -61,6 +61,6 @@ def run_cmd(command, workdir=os.getcwd(), inc_err=False,
         return exit_code, output
     else:
         raise RunCommandException(
-            "Exit code is %d, not %d for %s in %s\nStdout:%s\n%sStderr:%s" % (
+            "Exit code is %d, not %d for %s in %s\nStdout:%s\nStderr:%s" % (
                 exit_code, raise_if_not, command, workdir, output, stderr)
         )
