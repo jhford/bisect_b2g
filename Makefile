@@ -12,7 +12,7 @@ pep8:
 
 
 #TEST_RUNNER=python -m unittest discover -v
-TEST_RUNNER=nosetests -v
+TEST_RUNNER=nosetests --rednose -v
 #TEST_RUNNER=py.test -v
 
 tests:
