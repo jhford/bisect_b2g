@@ -1,63 +1,64 @@
 import logging
-
+from bisect_b2g.repository import Rev
 
 log = logging.getLogger(__name__)
 
 
+def oldest(ll):
+    """ Find the oldest head of a linked list and return it """
+    if len(ll) == 1:
+        log.debug("One item in list, it's the oldest")
+        return ll[0]
+    else:
+        oldest = ll[0]
+        for other in ll[1:]:
+            if other.date < oldest.date:
+                oldest = other
+                log.debug("other is older than oldest, making it oldest")
+
+        return oldest
+
+
+def make_revision_linked_list(project):
+    _rev_list = reversed(project.rev_list())
+    head = None
+
+    for hash, date in _rev_list:
+        head = Rev(hash, project, date, head)
+
+    return head
+
+
+def create_line(exhausted_heads, heads):
+    line = sorted(
+        sorted(exhausted_heads + heads, key=lambda x: x.prj.name),
+        key=lambda x: x.date)
+    oldest_head = oldest(heads)
+    oldest_head_i = heads.index(oldest_head)
+    if oldest_head.next_rev is None:
+        log.debug("Exhausted %s", oldest_head.prj.name)
+        exhausted_heads.append(oldest_head)
+        del heads[oldest_head_i]
+    else:
+        log.debug("Moving %s to next revision", oldest_head.prj.name)
+        heads[oldest_head_i] = heads[oldest_head_i].next_rev
+    line.sort(key=lambda x: x.prj.name)
+    log.debug("Generated a line of history: %s", [x.tag() for x in line])
+    return sorted(line, key=lambda x: x.prj.name)
+
+
 def build_history(projects):
-    global_rev_list = []
-    last_revs = []
-    rev_lists = [x.rev_ll() for x in projects]
+    history = []
+    exhausted_heads = []
+    heads = [make_revision_linked_list(x) for x in projects]
 
-    def oldest(l):
-        """Find the oldest head of a linked list and return it"""
-        if len(l) == 1:
-            log.debug("Only have %s to evaluate, it's oldest", l[0])
-            return l[0]
-        else:
-            oldest = l[0]
-            for other in l[1:]:
-                if other.date < oldest.date:
-                    oldest = other
-            log.debug("Found oldest: %s", oldest)
-            return oldest
-
-    def create_line(prev, new):
-        """ This function creates a line.  It will use the values in
-        prev, joined with the value of new"""
-        log.debug("prev: %s", prev)
-        log.debug("new:  %s", new)
-        if len(new) == 1:
-            global_rev_list.append(
-                sorted(prev + new, key=lambda x: x.prj.name)
-            )
-            rli = rev_lists.index(new[0])
-            if rev_lists[rli].next_rev is None:
-                log.debug("Found the last revision for %s",
-                          rev_lists[rli].prj.name)
-                last_revs.append(rev_lists[rli])
-                del rev_lists[rli]
-            else:
-                log.debug("Moving pointer for %s forward",
-                          rev_lists[rli].prj.name)
-                rev_lists[rli] = rev_lists[rli].next_rev
-            return
-        else:
-            # Otherwise, we want to recurse to finding the oldest objects
-            o = oldest(new)
-            if not o in prev:
-                prev.append(o)
-            del new[new.index(o)]
-            log.debug("Building a line, %.2f%% complete ",
-                      float(len(prev)) / (float(len(prev) + len(new))) * 100)
-            create_line(prev, new)
-
-    while len(rev_lists) > 0:
-        create_line(last_revs[:], rev_lists[:])
+    while len(heads) > (len(heads) + len(exhausted_heads) - 1):
+        history.append(create_line(exhausted_heads, heads))
 
     log.debug("Global History:")
-    map(log.debug, global_rev_list)
-    return list(reversed(global_rev_list))
+    for line in history:
+        log.debug(["%s@%s" % (x.prj.name, x.tag()) for x in line])
+    return history
 
 
 def validate_history(history):

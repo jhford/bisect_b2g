@@ -208,6 +208,9 @@ class Project(object):
                                   self.url,
                                   self.local_path)
 
+    def rev_list(self):
+        return self.repository.rev_list(self.good, self.bad)
+
     def rev_ll(self):
         rev_list = reversed(self.repository.rev_list(self.good, self.bad))
         head = None
@@ -244,3 +247,16 @@ class Rev(object):
     def __str__(self):
         return "%s@%s" % (self.prj.name, self.hash)
     __repr__ = __str__
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        for i in ('hash', 'date'):
+            if self.__dict__[i] != other.__dict__[i]:
+                return False
+        if not self.prj is other.prj:
+            return False
+        return True
+
+    def __ne__(self, other):
+        return not self.__eq__(other)

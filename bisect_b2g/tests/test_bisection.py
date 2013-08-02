@@ -113,7 +113,7 @@ class BisectionTest(unittest.TestCase):
         evaluator, history = self.build_varied_assets(trues, count)
         bisect = Bisection([self.project], history, evaluator)
         self.validate_calls(bisect.order)
-        self.assertEqual(2, bisect.found_i)
+        self.assertEqual(1, bisect.found_i)
         self.assertEqual([5, 2, 1], bisect.order)
 
     def test_true_on_1_and_2_of_10(self):
@@ -122,6 +122,5 @@ class BisectionTest(unittest.TestCase):
         evaluator, history = self.build_varied_assets(trues, count)
         bisect = Bisection([self.project], history, evaluator)
         self.validate_calls(bisect.order)
-        self.assertEqual(4, bisect.found_i)
-        # XXX I'm tired.  Unsure if the 4 should *really* be here
+        self.assertEqual(3, bisect.found_i)
         self.assertEqual([5, 2, 3, 4], bisect.order)

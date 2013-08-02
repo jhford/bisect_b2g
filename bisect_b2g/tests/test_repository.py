@@ -7,7 +7,15 @@ import datetime
 import pytz
 
 from bisect_b2g.util import run_cmd
-from bisect_b2g.repository import Project, GitRepository, HgRepository
+from bisect_b2g.repository import GitRepository, HgRepository
+
+
+def make_temp_dir(prefix):
+    dir = os.path.join(os.getcwd(), '.test_repos')
+    #raise Exception(dir)
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    return tempfile.mkdtemp(prefix=prefix+'_', dir=dir)
 
 
 class TempGitRepository(object):
@@ -16,8 +24,7 @@ class TempGitRepository(object):
         object.__init__(self)
         self.revision_names = revision_names
         self.revisions = []
-        self.location = loc = \
-            tempfile.mkdtemp(prefix='TempGit')
+        self.location = loc = make_temp_dir('TempGit')
         run_cmd(['git', 'init'], workdir=loc)
         for r_name in revision_names:
             with open(os.path.join(loc, data_f), 'w+b') as f:
@@ -46,8 +53,7 @@ class TempHgRepository(object):
         object.__init__(self)
         self.revision_names = revision_names
         self.revisions = []
-        self.location = loc = \
-            tempfile.mkdtemp(prefix='TempHg')
+        self.location = loc = make_temp_dir('TempHg')
         run_cmd(['hg', 'init'], workdir=loc)
         for r_name in revision_names:
             with open(os.path.join(loc, data_f), 'w+b') as f:
@@ -184,6 +190,10 @@ class GitRepositoryTests(GitTests, BaseRepositoryFixture, unittest.TestCase):
 
 class HgRepositoryTests(HgTests, BaseRepositoryFixture, unittest.TestCase):
 
+    # We do this here because in HG tags are just part of a file that's
+    # normally tracked and not as it's own object type.  This makes our tests
+    # confused because the repository ends up having more commits than we want
+    # for testing
     def tag_repo(self):
         for i in self.t_repo.revisions:
             run_cmd(['hg', 'tag', str(i['name']), '-r',
@@ -208,65 +218,3 @@ class HgRepositoryTests(HgTests, BaseRepositoryFixture, unittest.TestCase):
     def test_set_rev_by_tag(self):
         self.tag_repo()
         BaseRepositoryFixture.test_set_rev_by_tag(self)
-
-
-class BaseProjectTests(object):
-
-    def make_project(self, count, good_i, bad_i):
-        assert good_i >= 0
-        assert good_i < count
-        assert bad_i >= 0
-        assert bad_i < count
-        t_repo = self.fake_cls(revision_names=[
-            str(unichr(ord('A') + x)) for x in range(count)
-        ])
-
-        if issubclass(self.__class__, GitTests):
-            vcs = 'git'
-        elif issubclass(self.__class__, HgTests):
-            vcs = 'hg'
-        else:
-            assert False, "Unknown VCS being tested"
-        return t_repo, Project(
-            name='A Test Repository',
-            url=t_repo.location,
-            local_path=t_repo.location,
-            good=t_repo.revisions[good_i]['commit'],
-            bad=t_repo.revisions[bad_i]['commit'],
-            vcs=vcs,
-        )
-
-    def check_rev_ll(self, count, good_i, bad_i):
-        t_repo, project = self.make_project(count, good_i, bad_i)
-        head = project.rev_ll()
-        asserts = ([], [])
-        i = good_i
-        while not head is None:
-            asserts[0].append(t_repo.revisions[i]['commit'])
-            asserts[1].append(head.hash)
-            i += 1
-            head = head.next_rev
-
-        self.assertEqual(*asserts)
-        self.assertIsNone(head)
-        shutil.rmtree(t_repo.location)
-
-    def test_rev_ll_all(self):
-        self.check_rev_ll(10, 0, 9)
-
-    def test_rev_ll_middle(self):
-        self.check_rev_ll(10, 2, 6)
-
-    def test_rev_ll_beginning_to_middle(self):
-        self.check_rev_ll(10, 0, 6)
-
-    def test_rev_ll_middle_to_end(self):
-        self.check_rev_ll(10, 4, 9)
-
-
-class GitProjectTests(GitTests, BaseProjectTests, unittest.TestCase):
-    pass
-
-
-class HgProjectTests(HgTests, BaseProjectTests, unittest.TestCase):
-    pass
