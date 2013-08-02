@@ -40,13 +40,8 @@ def run_cmd(command, workdir=os.getcwd(), inc_err=False,
             "include stderr.  You are quizzical"
         )
 
-    if rc_only:
-        kwargs['stdout'] = kwargs['stderr'] = devnull
-
     if inc_err:
         kwargs['stderr'] = subprocess.STDOUT
-    else:
-        kwargs['stderr'] = devnull
 
     for x in ('stdout', 'stderr'):
         if not x in kwargs:
