@@ -4,21 +4,6 @@ from bisect_b2g.repository import Rev
 log = logging.getLogger(__name__)
 
 
-def oldest(ll):
-    """ Find the oldest head of a linked list and return it """
-    if len(ll) == 1:
-        log.debug("One item in list, it's the oldest")
-        return ll[0]
-    else:
-        oldest = ll[0]
-        for other in ll[1:]:
-            if other.date < oldest.date:
-                oldest = other
-                log.debug("other is older than oldest, making it oldest")
-
-        return oldest
-
-
 def make_revision_linked_list(project):
     _rev_list = reversed(project.rev_list())
     head = None
@@ -30,10 +15,8 @@ def make_revision_linked_list(project):
 
 
 def create_line(exhausted_heads, heads):
-    line = sorted(
-        sorted(exhausted_heads + heads, key=lambda x: x.prj.name),
-        key=lambda x: x.date)
-    oldest_head = oldest(heads)
+    line = sorted(exhausted_heads + heads, key=lambda x: x.date)
+    oldest_head = line[0]
     oldest_head_i = heads.index(oldest_head)
     if oldest_head.next_rev is None:
         log.debug("Exhausted %s", oldest_head.prj.name)
