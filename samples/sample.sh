@@ -6,8 +6,8 @@ rm -f bisection.log error.html bisect.html
 # Dates July 23, 2013 -> July 31, 2013
 bisect \
     -v \
-    --profile-output profile.data \
     --script ./test.sh \
+    --profile-output profile.data \
     GIThttps://github.com/mozilla-b2g/gaia.git-\>gaia@4705192..7577eb7 \
     HGhttps://hg.mozilla.org/mozilla-central-\>mozilla-central@34a46f10c5a0d80bb17c0039bfcb834ed75ffbff..97b2b5990840199b347d3f21bd7e6543d2bdf155
 

@@ -5,10 +5,10 @@
 grep '           <span id="dialer-message-text" data-l10n-id="NoPreviousOutgoingCalls" hidden> </span>'\
     gaia/apps/communications/dialer/index.html
 
-if [ $? -eq 0 ] ; then
-    echo FOUND
+if [ $? -ne 0 ] ; then
+    echo GOOD
     exit 0
 else
-    echo NOTFOUND
+    echo BAD
     exit 1
 fi
