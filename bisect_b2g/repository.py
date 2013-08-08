@@ -144,6 +144,8 @@ class HgRepository(Repository):
 
     def set_rev(self, rev):
         self.repo.hg_update('-r' + rev, clean=True)
+        log.debug("Intended to set %s, actually set %s",
+                  rev, self.get_rev())
 
     def validate_rev(self, rev):
         assert 0
@@ -211,8 +213,18 @@ class Project(object):
     def rev_list(self):
         return self.repository.rev_list(self.good, self.bad)
 
+    def get_rev(self, rev=None):
+        return self.repository.get_rev(rev)
+
     def set_rev(self, rev):
-        return self.repository.set_rev(rev)
+        self.repository.set_rev(rev)
+        if rev:
+            set_rev = self.get_rev()
+            if rev != set_rev:
+                raise Exception("Hash not set correctly. " +
+                                "Expected " + rev + " but " +
+                                set_rev + " was what was " +
+                                "actually set")
 
     def resolve_tag(self, rev=None):
         return self.repository.resolve_tag(rev)
