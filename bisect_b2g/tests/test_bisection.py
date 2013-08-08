@@ -104,8 +104,8 @@ class BisectionTest(unittest.TestCase):
             all_bad.found[0].hash)
         self.assertEqual(0, all_bad.found_i)
         self.assertEqual([], all_bad.pass_i)
-        self.assertEqual([5, 2, 1], all_bad.order)
-        self.validate_calls([5, 2, 1])
+        self.assertEqual([5, 2, 1, 0], all_bad.order)
+        self.validate_calls(all_bad.order)
 
     def test_true_on_2_of_10(self):
         trues = (2,)

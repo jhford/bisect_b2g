@@ -102,7 +102,7 @@ class RunCmdTest(unittest.TestCase):
         self.assertEqual(exit_code, rv[0])
         rv = util.run_cmd(command + [str(exit_code + 1)], rc_only=True)
         self.assertNotEqual(exit_code, rv[0])
-        self.assertEqual(None, rv[1])
+        self.assertEqual('Hello\n', rv[1])
 
     def test_run_cmd_inc_err(self):
         self.assertTrue(os.access(dumbo, os.R_OK | os.X_OK))
