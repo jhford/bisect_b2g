@@ -99,7 +99,7 @@ function show_tags(chkbox) {
   tr.untested.odd {
     background: #babdb6;
   }
-  tr.found.pass, tr.found.fail {
+  tr.found.pass, tr.found.fail, tr.found.untested {
     background: #204a87;
     color: white;
   }
@@ -217,10 +217,13 @@ class Bisection(object):
 
     def _bisect(self, history, num, offset_b):
         def test(revs):
+            log.info("Running test %d of %d", num + 1,
+                     self.max_recursions + 1)
+            for rev in revs:
+                log.info("  * " + str(rev))
             for rev in revs:
                 log.debug("Setting revision for %s" % rev)
                 rev.prj.set_rev(rev.hash)
-
             _outcome = self.evaluator.eval(revs)
 
             log.info("Test %s", 'pass' if _outcome else 'fail')
@@ -232,6 +235,8 @@ class Bisection(object):
         middle = len(history) / 2
         overall_index = middle + offset_b
 
+        outcome = test(history[middle])
+
         if len(history) == 1:
             if num == self.max_recursions - 1:
                 # Sometimes, we do log2(N), others log2(N)-1
@@ -240,13 +245,7 @@ class Bisection(object):
             self.found_i = overall_index
             return history[0]
         else:
-            cur = history[middle]
-            log.info("Running test %d of %d", num + 1,
-                     self.max_recursions)
-
-            map(log.info, cur)
-
-            if test(history[middle]):
+            if outcome:
                 self.pass_i.append(overall_index)
                 return self._bisect(history[middle:], num+1, offset_b + middle)
             else:
