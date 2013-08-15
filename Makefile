@@ -24,11 +24,14 @@ tests:
 .PHONY: check pep8 tests
 
 
-
+.PHONY: remotes
 # So that there is a standard name and url for releases
 remotes:
 	git remote add mozilla-b2g github.com:mozilla-b2g/bisect_b2g.git
 
+version=$(shell ./.bump_ver.sh)
+
+.PHONY: release
 # Do a release!
 release: check
 	python setup.py test
