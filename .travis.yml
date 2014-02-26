@@ -6,5 +6,6 @@ install:
   - "pip install isodate mako hgapi GitPython pytest mock pytz mercurial pep8 rednose"
   - "sudo chmod 777 /tmp"
   - "git config --global user.email \"test_user@localhost\""
+  - "git config --global user.name \"Test User\""
 # command to run tests
 script: make
